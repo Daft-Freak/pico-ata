@@ -1,2 +1,29 @@
 #pragma once
 
+// DD0-15
+#define ATA_DATA_PIN_BASE  0
+
+// CS0-CS1
+#define ATA_CS_PIN_BASE   16
+
+// DA0-DA2
+#define ATA_ADDR_PIN_BASE 18
+
+#define ATA_READ_PIN      21
+
+#define ATA_WRITE_PIN     22
+
+#define ATA_INTRQ_PIN     23
+
+#define ATA_RESET_PIN     27
+
+// masks
+#define ATA_DATA_PIN_MASK  (0xFFFF << ATA_DATA_PIN_BASE)
+#define ATA_CS_PIN_MASK    (     3 << ATA_CS_PIN_BASE)
+#define ATA_ADDR_PIN_MASK  (     7 << ATA_ADDR_PIN_BASE)
+#define ATA_READ_PIN_MASK  (     1 << ATA_READ_PIN)
+#define ATA_WRITE_PIN_MASK (     1 << ATA_WRITE_PIN)
+#define ATA_INTRQ_PIN_MASK (     1 << ATA_INTRQ_PIN)
+#define ATA_RESET_PIN_MASK (     1 << ATA_RESET_PIN)
+
+#define ATA_IO_MASK (ATA_DATA_PIN_MASK | ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK | ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK | ATA_INTRQ_PIN_MASK | ATA_RESET_PIN_MASK)
