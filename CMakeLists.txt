@@ -20,7 +20,7 @@ add_executable(pico-ata
 pico_set_program_name(pico-ata "pico-ata")
 pico_set_program_version(pico-ata "0.1")
 
-pico_enable_stdio_uart(pico-ata 0)
+pico_enable_stdio_uart(pico-ata 1)
 pico_enable_stdio_usb(pico-ata 1)
 
 # Add the standard library to the build
@@ -35,6 +35,12 @@ target_link_libraries(pico-ata
 )
 
 target_include_directories(pico-ata PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+
+target_compile_definitions(pico-ata PUBLIC
+    PICO_DEFAULT_UART=0
+    PICO_DEFAULT_UART_TX_PIN=32
+    PICO_DEFAULT_UART_RX_PIN=33
+)
 
 target_compile_options(pico-ata PRIVATE -Wall)
 
