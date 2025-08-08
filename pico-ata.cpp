@@ -16,6 +16,20 @@ enum class ATAReg
     Command = 2 << 3 | 7, // write-only
 };
 
+enum ATAStatus
+{
+    Status_ERR  = 1 << 0, // error
+    Status_DRQ  = 1 << 3, // data request
+    Status_DF   = 1 << 5, // device fault
+    Status_DRDY = 1 << 6, // device ready
+    Status_BSY  = 1 << 7, // busy
+};
+
+enum class ATACommand
+{
+    IDENTIFY_DEVICE = 0xEC,
+};
+
 static void init_io()
 {
     // setup all the IO
@@ -72,12 +86,18 @@ static void write_register(ATAReg reg, uint16_t data)
     gpio_set_dir_in_masked(ATA_DATA_PIN_MASK);
 }
 
+// tiny helper
+static void write_command(ATACommand command)
+{
+    write_register(ATAReg::Command, static_cast<int>(command));
+}
+
 static bool check_ready()
 {
     auto status = read_register(ATAReg::Status);
 
     // !BSY && DRDY
-    return !(status & (1 << 7)) && (status & (1 << 6));
+    return !(status & Status_BSY) && (status & Status_DRDY);
 }
 
 static bool check_data_request()
@@ -85,7 +105,7 @@ static bool check_data_request()
     auto status = read_register(ATAReg::Status);
 
     // !BSY && DRQ
-    return !(status & (1 << 7)) && (status & (1 << 3));
+    return !(status & Status_BSY) && (status & Status_DRQ);
 }
 
 static void do_reset()
@@ -104,7 +124,7 @@ static void do_reset()
         auto status = read_register(ATAReg::Status);
 
         // check for !BSY
-        if(!(status & (1 << 7)))
+        if(!(status & Status_BSY))
             break;
     }
 }
@@ -383,7 +403,7 @@ int main()
 
     // identify
     write_register(ATAReg::Device, 0 << 4); // device id 0
-    write_register(ATAReg::Command, 0xEC);
+    write_command(ATACommand::IDENTIFY_DEVICE);
 
     while(!check_data_request());
 
