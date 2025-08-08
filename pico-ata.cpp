@@ -10,10 +10,14 @@
 // includes CS and addr
 enum class ATAReg
 {
-    Data    = 2 << 3 | 0,
-    Device  = 2 << 3 | 6,
-    Status  = 2 << 3 | 7, // read-only
-    Command = 2 << 3 | 7, // write-only
+    Data        = 2 << 3 | 0,
+    SectorCount = 2 << 3 | 2,
+    LBALow      = 2 << 3 | 3,
+    LBAMid      = 2 << 3 | 4,
+    LBAHigh     = 2 << 3 | 5,
+    Device      = 2 << 3 | 6,
+    Status      = 2 << 3 | 7, // read-only
+    Command     = 2 << 3 | 7, // write-only
 };
 
 enum ATAStatus
@@ -27,6 +31,7 @@ enum ATAStatus
 
 enum class ATACommand
 {
+    READ_SECTOR     = 0x20,
     IDENTIFY_DEVICE = 0xEC,
 };
 
@@ -409,12 +414,58 @@ int main()
 
     printf("data available\n");
 
-    uint16_t identify_data[256];
+    uint16_t data[256];
 
     for(int i = 0; i < 256; i++)
-        identify_data[i] = read_register(ATAReg::Data);
+        data[i] = read_register(ATAReg::Data);
 
-    print_identify_result(identify_data);
+    print_identify_result(data);
+    
+    while(!check_ready());
+
+    // okay, lets try to read the MBR
+    uint32_t lba = 0;
+    write_register(ATAReg::SectorCount, 1);
+    write_register(ATAReg::LBALow, lba & 0xFF);
+    write_register(ATAReg::LBAMid, (lba >> 8) & 0xFF);
+    write_register(ATAReg::LBAMid, (lba >> 16) & 0xFF);
+    write_register(ATAReg::Device, 1 << 6 /*LBA*/ | 0 << 4 /*device id*/ | ((lba >> 24) & 0xF));
+    write_command(ATACommand::READ_SECTOR);
+
+    while(!check_data_request());
+
+    // 512 bytes (again)
+    for(int i = 0; i < 256; i++)
+        data[i] = read_register(ATAReg::Data);
+
+    // check boot signature
+    if(data[255] == 0xAA55)
+    {
+        auto byteData = reinterpret_cast<uint8_t *>(data);
+        for(int i = 0; i < 4; i++)
+        {
+            int offset = 0x1BE + i * 16;
+
+            bool active = byteData[offset + 0] & 0x80;
+            int startHead = byteData[offset + 1];
+            int startSector = byteData[offset + 2] & 0x3F;
+            int startCylinder = byteData[offset + 3] | (byteData[offset + 2] & 0xC0) << 2;
+            int type = byteData[offset + 4];
+            int endHead = byteData[offset + 5];
+            int endSector = byteData[offset + 6] & 0x3F;
+            int endCylinder = byteData[offset + 7] | (byteData[offset + 6] & 0xC0) << 2;
+
+            uint32_t lbaStart = byteData[offset + 8] | byteData[offset + 9] << 8 | byteData[offset + 10] << 16 | byteData[offset + 11] << 24;
+            uint32_t numSectors = byteData[offset + 12] | byteData[offset + 13] << 8 | byteData[offset + 14] << 16 | byteData[offset + 15] << 24;
+
+            if(!type)
+                continue; // skip empty
+
+            printf("partition %i type %02X active %i CHS %4i %3i %2i - %4i %3i %2i LBA %lu count %lu\n",
+                i, type, active, startCylinder, startHead, startSector, endCylinder, endHead, endSector, lbaStart, numSectors
+            );
+        }
+    }
 
     while(true)
     {
