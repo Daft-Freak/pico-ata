@@ -1,0 +1,14 @@
+; using PIO to implement PIO... PIO^2?
+.program pio_read
+.side_set 1
+
+; sideset IOR
+; addr has already been set
+out x, 16    side 1 ; get count
+
+loop:
+nop          side 0 [1]; set IOR
+; TODO: wait for IORDY
+in pins 16   side 1 ; read, clear IOR
+
+jmp x-- loop side 1

@@ -17,6 +17,8 @@ add_executable(pico-ata
     pico-ata.cpp
 )
 
+pico_generate_pio_header(pico-ata ${CMAKE_CURRENT_LIST_DIR}/ata.pio)
+
 pico_set_program_name(pico-ata "pico-ata")
 pico_set_program_version(pico-ata "0.1")
 
