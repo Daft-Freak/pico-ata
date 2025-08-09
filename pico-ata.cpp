@@ -134,6 +134,34 @@ static void do_reset()
     }
 }
 
+static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
+{
+    // TODO: error checking
+    // TODO: timeout?
+
+    assert(device < 2);
+    assert(num_sectors <= 256);
+    assert(lba < 0x10000000); // TODO: LBA48
+
+    while(!check_ready());
+
+    write_register(ATAReg::SectorCount, num_sectors & 0xFF); // 0 == 256, so just throw away the high bit
+    write_register(ATAReg::LBALow, lba & 0xFF);
+    write_register(ATAReg::LBAMid, (lba >> 8) & 0xFF);
+    write_register(ATAReg::LBAMid, (lba >> 16) & 0xFF);
+    write_register(ATAReg::Device, 1 << 6 /*LBA*/ | device << 4 /*device id*/ | ((lba >> 24) & 0xF));
+    write_command(ATACommand::READ_SECTOR);
+
+    for(int sector = 0; sector < num_sectors; sector++)
+    {
+        while(!check_data_request());
+
+        // 512 bytes per sector
+        for(int i = 0; i < 256; i++)
+            data[i + sector * 256] = read_register(ATAReg::Data);
+    }
+}
+
 static void print_identify_result(uint16_t data[256])
 {
     auto get_string = [](uint16_t *in_ptr, char *out_ptr, int len)
@@ -420,23 +448,9 @@ int main()
         data[i] = read_register(ATAReg::Data);
 
     print_identify_result(data);
-    
-    while(!check_ready());
-
+   
     // okay, lets try to read the MBR
-    uint32_t lba = 0;
-    write_register(ATAReg::SectorCount, 1);
-    write_register(ATAReg::LBALow, lba & 0xFF);
-    write_register(ATAReg::LBAMid, (lba >> 8) & 0xFF);
-    write_register(ATAReg::LBAMid, (lba >> 16) & 0xFF);
-    write_register(ATAReg::Device, 1 << 6 /*LBA*/ | 0 << 4 /*device id*/ | ((lba >> 24) & 0xF));
-    write_command(ATACommand::READ_SECTOR);
-
-    while(!check_data_request());
-
-    // 512 bytes (again)
-    for(int i = 0; i < 256; i++)
-        data[i] = read_register(ATAReg::Data);
+    read_sectors(0, 0, 1, data);
 
     // check boot signature
     if(data[255] == 0xAA55)
