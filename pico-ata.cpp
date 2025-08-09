@@ -89,7 +89,7 @@ static uint16_t read_register(ATAReg reg)
     gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
 
     // count = 1
-    pio_sm_put_blocking(ata_pio, ata_read_pio_sm, 1);
+    pio_sm_put_blocking(ata_pio, ata_read_pio_sm, 0);
 
     // get result
     uint16_t data = pio_sm_get_blocking(ata_pio, ata_read_pio_sm);
