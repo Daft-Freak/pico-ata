@@ -61,8 +61,9 @@ static void init_io()
     ata_write_pio_sm = pio_claim_unused_sm(ata_pio, true);
 
     // setup read/write pins
-    pio_sm_set_pins_with_mask(ata_pio, ata_read_pio_sm, 0, ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK);
-    pio_sm_set_pindirs_with_mask(ata_pio, ata_read_pio_sm, ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK, ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK);
+    uint32_t rw_mask = ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK;
+    pio_sm_set_pins_with_mask(ata_pio, ata_read_pio_sm, rw_mask, rw_mask);
+    pio_sm_set_pindirs_with_mask(ata_pio, ata_read_pio_sm, rw_mask, rw_mask);
     pio_gpio_init(ata_pio, ATA_READ_PIN);
     pio_gpio_init(ata_pio, ATA_WRITE_PIN);
 
