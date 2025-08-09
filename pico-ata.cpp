@@ -164,11 +164,20 @@ static void do_reset()
 
 static void do_pio_read(uint16_t *data, int count)
 {
-    // TODO: this could be a lot more efficient
     while(!check_data_request());
 
+    assert(count > 0);
+    assert(count <= 0x10000);
+
+    // set address
+    auto reg = ATAReg::Data;
+    gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
+
+    pio_sm_put_blocking(ata_pio, ata_read_pio_sm, (count - 1) << 16);
+
+    // TODO: DMA?
     for(int i = 0; i < count; i++)
-        data[i] = read_register(ATAReg::Data);
+        data[i] = pio_sm_get_blocking(ata_pio, ata_read_pio_sm);
 }
 
 static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
