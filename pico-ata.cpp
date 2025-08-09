@@ -39,7 +39,7 @@ enum class ATACommand
 };
 
 static const PIO ata_pio = pio0;
-static int ata_read_pio_sm = -1;
+static int ata_read_pio_sm = -1, ata_write_pio_sm = -1;
 
 static void init_io()
 {
@@ -47,7 +47,7 @@ static void init_io()
     gpio_init_mask(ATA_IO_MASK);
 
     // init the active low control signals
-    auto mask = ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK | ATA_RESET_PIN_MASK | ATA_CS_PIN_MASK;
+    auto mask = ATA_RESET_PIN_MASK | ATA_CS_PIN_MASK;
     gpio_put_masked(mask, mask);
 
     // also set address pins to output
@@ -56,13 +56,22 @@ static void init_io()
 
     // PIO init
     int read_program_offset = pio_add_program(pio0, &pio_read_program);
+    int write_program_offset = pio_add_program(pio0, &pio_write_program);
     ata_read_pio_sm = pio_claim_unused_sm(ata_pio, true);
+    ata_write_pio_sm = pio_claim_unused_sm(ata_pio, true);
 
-    // setup read pin
-    pio_sm_set_pins_with_mask(ata_pio, ata_read_pio_sm, 0, ATA_READ_PIN_MASK);
-    pio_sm_set_pindirs_with_mask(ata_pio, ata_read_pio_sm, ATA_READ_PIN_MASK, ATA_READ_PIN_MASK);
+    // setup read/write pins
+    pio_sm_set_pins_with_mask(ata_pio, ata_read_pio_sm, 0, ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK);
+    pio_sm_set_pindirs_with_mask(ata_pio, ata_read_pio_sm, ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK, ATA_READ_PIN_MASK | ATA_WRITE_PIN_MASK);
     pio_gpio_init(ata_pio, ATA_READ_PIN);
+    pio_gpio_init(ata_pio, ATA_WRITE_PIN);
 
+    // setup data bus
+    pio_sm_set_pindirs_with_mask(ata_pio, ata_read_pio_sm, 0, ATA_DATA_PIN_MASK);
+    for(int i = 0; i < 16; i++)
+        pio_gpio_init(ata_pio, ATA_DATA_PIN_BASE + i);
+
+    // configure read program
     pio_sm_config c = pio_read_program_get_default_config(read_program_offset);
 
     sm_config_set_in_shift(&c, false, true, 16); // data
@@ -77,10 +86,23 @@ static void init_io()
     int clkdiv = ceil(target_ns / clock_ns);
     sm_config_set_clkdiv_int_frac8(&c, clkdiv, 0);
 
-    // init and start
     pio_sm_init(ata_pio, ata_read_pio_sm, read_program_offset, &c);
 
-    pio_sm_set_enabled(ata_pio, ata_read_pio_sm, true);
+    // configure write program
+    c = pio_write_program_get_default_config(write_program_offset);
+
+    sm_config_set_out_shift(&c, false, false, 16); // data
+
+    sm_config_set_out_pins(&c, ATA_DATA_PIN_BASE, 16);
+    sm_config_set_sideset_pins(&c, ATA_WRITE_PIN);
+
+    // TODO: this program is slightly longer, so a bit slower
+    sm_config_set_clkdiv_int_frac8(&c, clkdiv, 0);
+
+    pio_sm_init(ata_pio, ata_write_pio_sm, write_program_offset, &c);
+
+    // start
+    pio_set_sm_mask_enabled(ata_pio, 1 << ata_read_pio_sm | 1 << ata_write_pio_sm, true);
 }
 
 static uint16_t read_register(ATAReg reg)
@@ -88,35 +110,35 @@ static uint16_t read_register(ATAReg reg)
     // set address
     gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
 
+    uint32_t stall_mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + ata_read_pio_sm);
+    ata_pio->fdebug |= stall_mask;
+
     // count = 1
     pio_sm_put_blocking(ata_pio, ata_read_pio_sm, 0);
 
     // get result
     uint16_t data = pio_sm_get_blocking(ata_pio, ata_read_pio_sm);
 
+    // wait for stall
+    while(!(ata_pio->fdebug & stall_mask));
+
     return data;
 }
 
 static void write_register(ATAReg reg, uint16_t data)
 {
-    // the slowest cycle time we could possibly need here is 600ns
-
     // set address
     gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
 
-    sleep_us(1); // 70ns worst case
+    uint32_t stall_mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + ata_write_pio_sm);
+    ata_pio->fdebug |= stall_mask;
 
-    // assert IOW
-    gpio_put(ATA_WRITE_PIN, false);
-    sleep_us(1); // 290ns for mode 0-2
+    pio_sm_put_blocking(ata_pio, ata_write_pio_sm, data << 16);
 
-    // put data
-    gpio_put_masked(ATA_DATA_PIN_MASK, data << ATA_DATA_PIN_BASE);
-    gpio_set_dir_out_masked(ATA_DATA_PIN_MASK);
-    sleep_us(1); // 60ns before end of IOW pulse (worst case)
+    // wait for stall
+    while(!(ata_pio->fdebug & stall_mask));
 
-    gpio_put(ATA_WRITE_PIN, true);
-    gpio_set_dir_in_masked(ATA_DATA_PIN_MASK);
+    sleep_us(1); // FIXME: figure out what is broken without this delay
 }
 
 // tiny helper
@@ -173,11 +195,17 @@ static void do_pio_read(uint16_t *data, int count)
     auto reg = ATAReg::Data;
     gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
 
+    uint32_t stall_mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + ata_read_pio_sm);
+    ata_pio->fdebug |= stall_mask;
+
     pio_sm_put_blocking(ata_pio, ata_read_pio_sm, (count - 1) << 16);
 
     // TODO: DMA?
     for(int i = 0; i < count; i++)
         data[i] = pio_sm_get_blocking(ata_pio, ata_read_pio_sm);
+
+    // wait for stall
+    while(!(ata_pio->fdebug & stall_mask));
 }
 
 static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
