@@ -79,6 +79,7 @@ static void init_io()
 
     sm_config_set_in_pins(&c, ATA_DATA_PIN_BASE);
     sm_config_set_sideset_pins(&c, ATA_READ_PIN);
+    sm_config_set_jmp_pin(&c, ATA_IORDY_PIN);
 
     // calc clkdiv
     double clock_ns = 1000000000.0 / clock_get_hz(clk_sys);
@@ -95,6 +96,7 @@ static void init_io()
 
     sm_config_set_out_pins(&c, ATA_DATA_PIN_BASE, 16);
     sm_config_set_sideset_pins(&c, ATA_WRITE_PIN);
+    sm_config_set_jmp_pin(&c, ATA_IORDY_PIN);
 
     // TODO: this program is slightly longer, so a bit slower
     sm_config_set_clkdiv_int_frac8(&c, clkdiv, 0);
