@@ -180,7 +180,7 @@ static void print_identify_result(uint16_t data[256])
         *out_ptr++ = 0;
     };
 
-    char string_buf[40];
+    char string_buf[41];
 
     printf("IDENTIFY DEVICE:\n");
 
