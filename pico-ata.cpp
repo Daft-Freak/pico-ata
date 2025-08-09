@@ -224,7 +224,7 @@ static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *da
     write_register(ATAReg::SectorCount, num_sectors & 0xFF); // 0 == 256, so just throw away the high bit
     write_register(ATAReg::LBALow, lba & 0xFF);
     write_register(ATAReg::LBAMid, (lba >> 8) & 0xFF);
-    write_register(ATAReg::LBAMid, (lba >> 16) & 0xFF);
+    write_register(ATAReg::LBAHigh, (lba >> 16) & 0xFF);
     write_register(ATAReg::Device, 1 << 6 /*LBA*/ | device << 4 /*device id*/ | ((lba >> 24) & 0xF));
     write_command(ATACommand::READ_SECTOR);
 
