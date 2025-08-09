@@ -114,10 +114,10 @@ static uint16_t read_register(ATAReg reg)
     gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
 
     uint32_t stall_mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + ata_read_pio_sm);
-    ata_pio->fdebug |= stall_mask;
 
     // count = 1
     pio_sm_put_blocking(ata_pio, ata_read_pio_sm, 0);
+    ata_pio->fdebug |= stall_mask;
 
     // get result
     uint16_t data = pio_sm_get_blocking(ata_pio, ata_read_pio_sm);
@@ -134,14 +134,12 @@ static void write_register(ATAReg reg, uint16_t data)
     gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
 
     uint32_t stall_mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + ata_write_pio_sm);
-    ata_pio->fdebug |= stall_mask;
 
     pio_sm_put_blocking(ata_pio, ata_write_pio_sm, data << 16);
 
     // wait for stall
+    ata_pio->fdebug |= stall_mask;
     while(!(ata_pio->fdebug & stall_mask));
-
-    sleep_us(1); // FIXME: figure out what is broken without this delay
 }
 
 // tiny helper
@@ -199,9 +197,9 @@ static void do_pio_read(uint16_t *data, int count)
     gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
 
     uint32_t stall_mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + ata_read_pio_sm);
-    ata_pio->fdebug |= stall_mask;
 
     pio_sm_put_blocking(ata_pio, ata_read_pio_sm, (count - 1) << 16);
+    ata_pio->fdebug |= stall_mask;
 
     // TODO: DMA?
     for(int i = 0; i < count; i++)
