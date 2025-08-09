@@ -134,6 +134,15 @@ static void do_reset()
     }
 }
 
+static void do_pio_read(uint16_t *data, int count)
+{
+    // TODO: this could be a lot more efficient
+    while(!check_data_request());
+
+    for(int i = 0; i < count; i++)
+        data[i] = read_register(ATAReg::Data);
+}
+
 static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
 {
     // TODO: error checking
@@ -154,11 +163,8 @@ static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *da
 
     for(int sector = 0; sector < num_sectors; sector++)
     {
-        while(!check_data_request());
-
         // 512 bytes per sector
-        for(int i = 0; i < 256; i++)
-            data[i + sector * 256] = read_register(ATAReg::Data);
+        do_pio_read(data + sector * 256, 256);
     }
 }
 
@@ -438,14 +444,8 @@ int main()
     write_register(ATAReg::Device, 0 << 4); // device id 0
     write_command(ATACommand::IDENTIFY_DEVICE);
 
-    while(!check_data_request());
-
-    printf("data available\n");
-
     uint16_t data[256];
-
-    for(int i = 0; i < 256; i++)
-        data[i] = read_register(ATAReg::Data);
+    do_pio_read(data, 256);
 
     print_identify_result(data);
    
