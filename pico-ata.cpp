@@ -41,6 +41,16 @@ enum class ATACommand
 static const PIO ata_pio = pio0;
 static int ata_read_pio_sm = -1, ata_write_pio_sm = -1;
 
+static int calculate_clkdiv(int target_cycle_time)
+{
+    double clock_ns = 1000000000.0 / clock_get_hz(clk_sys);
+    int target_ns = target_cycle_time / 4; // 4 instructions for the loop in the read program
+    // TODO: the write program is slightly longer, so a bit slower
+    int clkdiv = ceil(target_ns / clock_ns);
+
+    return clkdiv;
+}
+
 static void init_io()
 {
     // setup all the IO
@@ -83,9 +93,7 @@ static void init_io()
     sm_config_set_jmp_pin(&c, ATA_IORDY_PIN);
 
     // calc clkdiv
-    double clock_ns = 1000000000.0 / clock_get_hz(clk_sys);
-    int target_ns = 600 / 4; // PIO mode 0 cycle time, 4 instructions for the loop in the program
-    int clkdiv = ceil(target_ns / clock_ns);
+    int clkdiv = calculate_clkdiv(600); // PIO mode 0 cycle time
     sm_config_set_clkdiv_int_frac8(&c, clkdiv, 0);
 
     pio_sm_init(ata_pio, ata_read_pio_sm, read_program_offset, &c);
@@ -99,7 +107,6 @@ static void init_io()
     sm_config_set_sideset_pins(&c, ATA_WRITE_PIN);
     sm_config_set_jmp_pin(&c, ATA_IORDY_PIN);
 
-    // TODO: this program is slightly longer, so a bit slower
     sm_config_set_clkdiv_int_frac8(&c, clkdiv, 0);
 
     pio_sm_init(ata_pio, ata_write_pio_sm, write_program_offset, &c);
@@ -514,6 +521,27 @@ int main()
     do_pio_read(data, 256);
 
     print_identify_result(data);
+
+    // reconfigure for speed
+    int min_cycle_time = 600;
+    if(data[53] & (1 << 1))
+        min_cycle_time = data[68];
+
+    // our read/write pulses get a bit short below this
+    // (we're also wrong for reg access in modes 1-2 (330-383ns cycle times))
+    if(min_cycle_time < 160)
+        min_cycle_time = 160;
+
+    printf("adjusting for %ins cycle time\n", min_cycle_time);
+
+    int clkdiv = calculate_clkdiv(min_cycle_time);
+
+    pio_set_sm_mask_enabled(ata_pio, 1 << ata_read_pio_sm | 1 << ata_write_pio_sm, false);
+
+    pio_sm_set_clkdiv_int_frac8(ata_pio, ata_read_pio_sm, clkdiv, 0);
+    pio_sm_set_clkdiv_int_frac8(ata_pio, ata_write_pio_sm, clkdiv, 0);
+
+    pio_set_sm_mask_enabled(ata_pio, 1 << ata_read_pio_sm | 1 << ata_write_pio_sm, true);
    
     // okay, lets try to read the MBR
     read_sectors(0, 0, 1, data);
