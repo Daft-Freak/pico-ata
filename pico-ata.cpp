@@ -494,6 +494,38 @@ static void print_identify_result(uint16_t data[256])
     printf("\n");
 }
 
+static void print_mbr(uint16_t data[256])
+{
+    // check boot signature
+    if(data[255] == 0xAA55)
+    {
+        auto byteData = reinterpret_cast<uint8_t *>(data);
+        for(int i = 0; i < 4; i++)
+        {
+            int offset = 0x1BE + i * 16;
+
+            bool active = byteData[offset + 0] & 0x80;
+            int startHead = byteData[offset + 1];
+            int startSector = byteData[offset + 2] & 0x3F;
+            int startCylinder = byteData[offset + 3] | (byteData[offset + 2] & 0xC0) << 2;
+            int type = byteData[offset + 4];
+            int endHead = byteData[offset + 5];
+            int endSector = byteData[offset + 6] & 0x3F;
+            int endCylinder = byteData[offset + 7] | (byteData[offset + 6] & 0xC0) << 2;
+
+            uint32_t lbaStart = byteData[offset + 8] | byteData[offset + 9] << 8 | byteData[offset + 10] << 16 | byteData[offset + 11] << 24;
+            uint32_t numSectors = byteData[offset + 12] | byteData[offset + 13] << 8 | byteData[offset + 14] << 16 | byteData[offset + 15] << 24;
+
+            if(!type)
+                continue; // skip empty
+
+            printf("partition %i type %02X active %i CHS %4i %3i %2i - %4i %3i %2i LBA %lu count %lu\n",
+                i, type, active, startCylinder, startHead, startSector, endCylinder, endHead, endSector, lbaStart, numSectors
+            );
+        }
+    }
+}
+
 // for benchmark
 static uint16_t buf[256 * 512 / 2];
 
@@ -549,35 +581,7 @@ int main()
    
     // okay, lets try to read the MBR
     read_sectors(0, 0, 1, data);
-
-    // check boot signature
-    if(data[255] == 0xAA55)
-    {
-        auto byteData = reinterpret_cast<uint8_t *>(data);
-        for(int i = 0; i < 4; i++)
-        {
-            int offset = 0x1BE + i * 16;
-
-            bool active = byteData[offset + 0] & 0x80;
-            int startHead = byteData[offset + 1];
-            int startSector = byteData[offset + 2] & 0x3F;
-            int startCylinder = byteData[offset + 3] | (byteData[offset + 2] & 0xC0) << 2;
-            int type = byteData[offset + 4];
-            int endHead = byteData[offset + 5];
-            int endSector = byteData[offset + 6] & 0x3F;
-            int endCylinder = byteData[offset + 7] | (byteData[offset + 6] & 0xC0) << 2;
-
-            uint32_t lbaStart = byteData[offset + 8] | byteData[offset + 9] << 8 | byteData[offset + 10] << 16 | byteData[offset + 11] << 24;
-            uint32_t numSectors = byteData[offset + 12] | byteData[offset + 13] << 8 | byteData[offset + 14] << 16 | byteData[offset + 15] << 24;
-
-            if(!type)
-                continue; // skip empty
-
-            printf("partition %i type %02X active %i CHS %4i %3i %2i - %4i %3i %2i LBA %lu count %lu\n",
-                i, type, active, startCylinder, startHead, startSector, endCylinder, endHead, endSector, lbaStart, numSectors
-            );
-        }
-    }
+    print_mbr(data);
 
     // little benchmark
    
