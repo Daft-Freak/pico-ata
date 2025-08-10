@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cmath>
+#include <random>
 
 #include "hardware/clocks.h"
 #include "pico/stdlib.h"
@@ -493,6 +494,9 @@ static void print_identify_result(uint16_t data[256])
     printf("\n");
 }
 
+// for benchmark
+static uint16_t buf[256 * 512 / 2];
+
 int main()
 {
     init_io();
@@ -574,6 +578,62 @@ int main()
             );
         }
     }
+
+    // little benchmark
+   
+    auto format_speed = [](int num_sectors, int64_t time_us, const char *&unit)
+    {
+        float speed = float(num_sectors * 512) / (float(time_us) / 1000000.0f);
+        unit = "B";
+
+        if(speed >= 1000.0f)
+        {
+            speed /= 1000.0f;
+            unit = "kB";
+        }
+
+        if(speed >= 1000.0f)
+        {
+            speed /= 1000.0f;
+            unit = "MB";
+        }
+
+        return speed;
+    };
+
+    start = get_absolute_time();
+    int count = 0;
+    for(int sector = 0; sector < 10 * 1024 * 1024 / 512; sector += 256, count++)
+    {
+        printf(".");
+        read_sectors(0, sector, 256, buf);
+    }
+    end = get_absolute_time();
+
+    auto time_us = absolute_time_diff_us(start, end);
+    const char *unit;
+    float speed = format_speed(256 * count, time_us, unit);
+    
+    printf("\nread %ix256 sectors in %llius %3.3f%s/s", count, time_us, speed, unit);
+
+    // random reads
+    std::mt19937 gen;
+    std::uniform_int_distribution<> distrib(0, 1000000);
+
+    start = get_absolute_time();
+    count = 1000;
+    for(int i = 0; i < count; i++)
+    {
+        int lba = distrib(gen);
+
+        read_sectors(0, lba, 1, buf);
+    }
+    end = get_absolute_time();
+
+    time_us = absolute_time_diff_us(start, end);
+    speed = format_speed(count * 1, time_us, unit);
+    
+    printf("\nread %ix1 random sectors in %llius %3.3f%s/s", count, time_us, speed, unit);
 
     while(true)
     {
