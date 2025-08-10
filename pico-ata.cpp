@@ -522,6 +522,46 @@ static void print_mbr(uint16_t data[256])
             printf("partition %i type %02X active %i CHS %4i %3i %2i - %4i %3i %2i LBA %lu count %lu\n",
                 i, type, active, start_cylinder, start_head, start_sector, end_cylinder, end_head, end_sector, lba_start, num_sectors
             );
+
+            // check for extended partition
+            auto ext_type = type;
+            uint32_t ext_lba_start = 0;
+            int ext_index = 0;
+            while(ext_type == 0x5 || ext_type == 0xF || ext_type == 0x85)
+            {
+                // technically some of these should be using CHS addressing...
+                uint16_t ebr_data[256];
+                read_sectors(0, lba_start + ext_lba_start, 1, ebr_data);
+
+                if(ebr_data[255] == 0xAA55)
+                {
+                    auto ebr_byte_data = reinterpret_cast<uint8_t *>(ebr_data);
+                    offset = 0x1BE;
+
+                    bool active = ebr_byte_data[offset + 0] & 0x80;
+                    int start_head = ebr_byte_data[offset + 1];
+                    int start_sector = ebr_byte_data[offset + 2] & 0x3F;
+                    int start_cylinder = ebr_byte_data[offset + 3] | (ebr_byte_data[offset + 2] & 0xC0) << 2;
+                    int type = ebr_byte_data[offset + 4];
+                    int end_head = ebr_byte_data[offset + 5];
+                    int end_sector = ebr_byte_data[offset + 6] & 0x3F;
+                    int end_cylinder = ebr_byte_data[offset + 7] | (ebr_byte_data[offset + 6] & 0xC0) << 2;
+
+                    uint32_t lba_start = ebr_byte_data[offset + 8] | ebr_byte_data[offset + 9] << 8 | ebr_byte_data[offset + 10] << 16 | ebr_byte_data[offset + 11] << 24;
+                    uint32_t num_sectors = ebr_byte_data[offset + 12] | ebr_byte_data[offset + 13] << 8 | ebr_byte_data[offset + 14] << 16 | ebr_byte_data[offset + 15] << 24;
+
+                    printf(" extended %i type %02X active %i CHS %4i %3i %2i - %4i %3i %2i LBA %lu count %lu\n",
+                        ext_index, type, active, start_cylinder, start_head, start_sector, end_cylinder, end_head, end_sector, lba_start, num_sectors
+                    );
+
+                    // setup for next extended partition
+                    ext_type = ebr_byte_data[0x1CE + 4];
+                    ext_lba_start = ebr_byte_data[0x1CE + 8] | ebr_byte_data[0x1CE + 9] << 8 | ebr_byte_data[0x1CE + 10] << 16 | ebr_byte_data[0x1CE + 11] << 24;
+                    ext_index++;
+                }
+                else
+                    ext_type = 0;
+            }
         }
     }
 }
