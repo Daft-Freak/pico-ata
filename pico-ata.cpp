@@ -385,7 +385,7 @@ static void print_identify_result(uint16_t data[256])
         printf("\t\twrite buffer\n");
     if(data[82] & (1 << 13))
         printf("\t\tread buffer\n");
-    if(data[82] & (1 << 15))
+    if(data[82] & (1 << 14))
         printf("\t\tNOP\n");
 
     if(data[83] & (1 <<  0))
