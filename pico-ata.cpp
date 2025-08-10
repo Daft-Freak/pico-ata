@@ -356,6 +356,8 @@ static void print_identify_result(uint16_t data[256])
 
     printf("\tqueue depth: %i\n", data[75] + 1);
 
+    // 76-79 are for SATA
+
     printf("\tmajor version: ATA-%i\n", 31 - __builtin_clz(data[80]));
     // 81 is minor version
 
@@ -428,13 +430,37 @@ static void print_identify_result(uint16_t data[256])
         printf("\t\tmedia card pass through\n");
     if(data[84] & (1 <<  5))
         printf("\t\tgeneral purpose logging\n");
+    if(data[84] & (1 <<  6))
+        printf("\t\tWRITE DMA/MULTIPLE FUA EXT\n");
+    if(data[84] & (1 <<  7))
+        printf("\t\tWRITE DMA QUEUED FUA EXT\n");
+    if(data[84] & (1 <<  8))
+        printf("\t\t64-bit world wide name\n");
+    if(data[84] & (1 << 13))
+        printf("\t\tIDLE IMMEDIATE with UNLOAD\n");
+
+    if((data[119] >> 14) == 1)
+    {
+        if(data[119] & (1 <<  1))
+            printf("\t\twrite-read-verify\n");
+        if(data[119] & (1 <<  2))
+            printf("\t\tWRITE UNCORRECTABLE EXT\n");
+        if(data[119] & (1 <<  3))
+            printf("\t\tREAD/WRITE LOG DMA EXT\n");
+        if(data[119] & (1 <<  4))
+            printf("\t\tDOWNLOAD MICROCODE offset transfer\n");
+        if(data[119] & (1 <<  5))
+            printf("\t\tfree-fall control\n");
+    }
 
     // 85-87 are enabled features
 
     if(w88_valid)
     {
         printf("\tsupported Ultra DMA modes: ");
-        if(data[88] & (1 << 5))
+        if(data[88] & (1 << 6))
+            printf("0-6\n");
+        else if(data[88] & (1 << 5))
             printf("0-5\n");
         else if(data[88] & (1 << 4))
             printf("0-4\n");
@@ -475,6 +501,32 @@ static void print_identify_result(uint16_t data[256])
     }
 
     // 94 is acoustic management
+
+    // 95-99 are for streaming
+
+    if((data[106] >> 14) == 1)
+    {
+        if(data[106] & (1 << 13))
+            printf("\t%i logical sectors per physical sector", 1 << (data[106] & 0xF));
+        else
+            printf("\t1 logical sector per physical sector");
+
+        printf(", logical sector is%s longer than 256 words\n", data[106] & (1 << 12) ? "" : " not");
+
+        // 117-118 are logical sector size (valid if bit 12)
+
+        // 209 is sector alignment (valid if bit 13)
+    }
+
+    // 107 is for acoustic testing
+
+    // 108-111 are world wide name
+
+    // 119-120 are more features
+
+    // 214-216, 219 are for cache
+
+    // 217 is rotation rate
 
     // verify checksum if signature correct
     if((data[255] & 0xFF) == 0xA5)
