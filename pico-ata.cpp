@@ -618,6 +618,64 @@ static void print_mbr(uint16_t data[256])
     }
 }
 
+static void print_gpt(uint16_t data[256])
+{
+    auto print_guid = [](uint8_t *guid)
+    {
+        printf("%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+            guid[3], guid[2], guid[1], guid[0],
+            guid[5], guid[4],
+            guid[7], guid[6],
+            guid[8], guid[9],
+            guid[10], guid[11], guid[12], guid[13], guid[14], guid[15]
+        );
+    };
+
+    uint64_t array_start_lba = data[36] | data[37] << 16 | uint64_t(data[38]) << 32 | uint64_t(data[39]) << 48;
+    uint32_t num_partitions = data[40] | data[41] << 16;
+    uint32_t partition_entry_size = data[42] | data[43] << 16;
+    printf("GPT id ");
+    print_guid((uint8_t *)&data[28]);
+    printf(" %lu partitions, size %lu\n", num_partitions, partition_entry_size);
+
+    const int sector_size = 512; // assuming
+    uint8_t sector_buf[sector_size];
+
+    for(uint32_t partition = 0; partition < num_partitions; partition++)
+    {
+        auto byte_offset = partition * partition_entry_size;
+
+        if(byte_offset % sector_size == 0)
+            read_sectors(0, array_start_lba + byte_offset / sector_size, 1, (uint16_t *)sector_buf);
+
+        auto part_data = sector_buf + (byte_offset % sector_size);
+
+        // ignore zeroed partition type (unused)
+        bool is_zero = true;
+
+        for(int i = 0; i < 16; i++)
+        {
+            if(part_data[i])
+                is_zero = false;
+        }
+
+        if(is_zero)
+            continue;
+
+        printf("\ttype ");
+        print_guid(part_data);
+        printf(" id ");
+        print_guid(part_data + 16);
+
+        auto start = *(uint64_t *)(part_data + 32);
+        auto end = *(uint64_t *)(part_data + 40);
+        auto attribs = *(uint64_t *)(part_data + 48);
+        // UTF-16 name at 56
+
+        printf(" LBA %llu - %llu attribs %llx\n", start, end, attribs);
+    }
+}
+
 // for benchmark
 static uint16_t buf[256 * 512 / 2];
 
@@ -673,7 +731,16 @@ int main()
    
     // okay, lets try to read the MBR
     read_sectors(0, 0, 1, data);
-    print_mbr(data);
+
+    if(((uint8_t *)data)[0x1BE + 4] == 0xEE)
+    {
+        printf("protective MBR, probably GPT...\n");
+        read_sectors(0, 1, 1, data);
+        if(memcmp(data, "EFI PART", 8) == 0)
+            print_gpt(data);
+    }
+    else
+        print_mbr(data);
 
     // little benchmark
    
