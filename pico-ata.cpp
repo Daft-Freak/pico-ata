@@ -323,7 +323,7 @@ static void print_identify_result(uint16_t data[256])
         printf("\t%i cur capacity in sectors\n", data[57] | data[58] << 16);
     }
 
-    printf("\tcur num sectors for multi: %i\n", data[59]);
+    printf("\tcur num sectors for multi: %i\n", data[59] & 0xFF);
     printf("\t%i user addressable sectors\n", data[60] | data[61] << 16);
 
     // 62 is single word dma modes
