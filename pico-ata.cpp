@@ -15,6 +15,7 @@
 enum class ATAReg
 {
     Data        = 2 << 3 | 0,
+    Features    = 2 << 3 | 1,
     SectorCount = 2 << 3 | 2,
     LBALow      = 2 << 3 | 3,
     LBAMid      = 2 << 3 | 4,
@@ -37,6 +38,7 @@ enum class ATACommand
 {
     READ_SECTOR     = 0x20,
     IDENTIFY_DEVICE = 0xEC,
+    SET_FEATURES    = 0xEF,
 };
 
 static const PIO ata_pio = pio0;
@@ -706,6 +708,19 @@ int main()
     do_pio_read(data, 256);
 
     print_identify_result(data);
+
+    // set PIO mode if >= 3
+    if((data[53] & (1 << 1)) && (data[64] & (1 << 0)))
+    {
+        while(!check_ready());
+
+        int mode = (data[64] & (1 << 1)) ? 4 : 3;
+
+        write_register(ATAReg::Features, 3);
+        write_register(ATAReg::SectorCount, 1 << 3/*PIO flow control mode*/ | mode);
+        write_register(ATAReg::Device, 0 << 4); // device id 0
+        write_command(ATACommand::SET_FEATURES);
+    }
 
     // reconfigure for speed
     int min_cycle_time = 600;
