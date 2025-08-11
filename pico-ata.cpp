@@ -45,8 +45,7 @@ static int ata_read_pio_sm = -1, ata_write_pio_sm = -1;
 static int calculate_clkdiv(int target_cycle_time)
 {
     double clock_ns = 1000000000.0 / clock_get_hz(clk_sys);
-    int target_ns = target_cycle_time / 4; // 4 instructions for the loop in the read program
-    // TODO: the write program is slightly longer, so a bit slower
+    int target_ns = target_cycle_time / 6; // 6 instructions for the loop
     int clkdiv = ceil(target_ns / clock_ns);
 
     return clkdiv;
@@ -713,10 +712,9 @@ int main()
     if(data[53] & (1 << 1))
         min_cycle_time = data[68];
 
-    // our read/write pulses get a bit short below this
-    // (we're also wrong for reg access in modes 1-2 (330-383ns cycle times))
-    if(min_cycle_time < 160)
-        min_cycle_time = 160;
+    // we're wrong for reg access in modes 1-2 (330-383ns cycle times)
+    // (and the mode 2 cycle time for reg access is different...)
+    // let's just hope nobody connects a drive that slow
 
     printf("adjusting for %ins cycle time\n", min_cycle_time);
 

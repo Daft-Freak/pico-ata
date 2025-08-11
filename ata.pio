@@ -4,11 +4,11 @@
 
 ; sideset IOR
 ; addr has already been set
-out x, 16     side 1 ; get count
+out x, 16     side 1 [1]; get count
 
 loop:
-nop           side 0 ; set IOR
-wait 1 jmppin side 0 ; wait for IORDY
+nop           side 0 [1] ; set IOR
+wait 1 jmppin side 0 [1]; wait for IORDY
 in pins 16    side 1 ; read, clear IOR
 
 jmp x-- loop  side 1
@@ -18,8 +18,8 @@ jmp x-- loop  side 1
 .side_set 1
 
 ;sideset IOW
-pull               side 1
-out pins 16        side 0 ; write, set IOW
+pull               side 1 [1]
+out pins 16        side 0 [1] ; write, set IOW
 wait 1 jmppin      side 0 ; wait for IORDY
 mov pindirs, ~null side 0 ; enable output
 nop                side 1 ; clear IOW
