@@ -36,9 +36,10 @@ enum ATAStatus
 
 enum class ATACommand
 {
-    READ_SECTOR     = 0x20,
-    IDENTIFY_DEVICE = 0xEC,
-    SET_FEATURES    = 0xEF,
+    READ_SECTOR            = 0x20,
+    IDENTIFY_PACKET_DEVICE = 0xA1,
+    IDENTIFY_DEVICE        = 0xEC,
+    SET_FEATURES           = 0xEF,
 };
 
 static const PIO ata_pio = pio0;
@@ -257,11 +258,28 @@ static void print_identify_result(uint16_t data[256])
 
     char string_buf[41];
 
+    bool is_atapi = (data[0] >> 14) == 2;
+
     printf("IDENTIFY DEVICE:\n");
 
-    // bit 15 should be 0
-    printf("\t%sremovable, %scomplete response\n", (data[0] & (1 << 7)) ? "" : "non-", (data[0] & (1 << 2)) ? "in" : "");
-    printf("\t%i cylinders\n", data[1]);
+    if(is_atapi)
+    {
+        int periph_type = (data[0] >> 8) & 0x1F;
+        int drq_time = (data[0] >> 5) & 3;
+        int packet_size = data[0] & 3;
+
+        static const char *drq_times[]{"3ms", "INTRQ", "50us", ""};
+        static const int packet_sizes[]{12, 16, 0, 0};
+
+        printf("\ttype %x, DRQ %s, %sremovable, %scomplete response, packet size %i\n",
+            periph_type, drq_times[drq_time], (data[0] & (1 << 7)) ? "" : "non-", (data[0] & (1 << 2)) ? "in" : "", packet_sizes[packet_size]
+        );
+    }
+    else
+    {
+        printf("\t%sremovable, %scomplete response\n", (data[0] & (1 << 7)) ? "" : "non-", (data[0] & (1 << 2)) ? "in" : "");
+        printf("\t%i cylinders\n", data[1]);
+    }
 
     switch(data[2])
     {
@@ -282,12 +300,14 @@ static void print_identify_result(uint16_t data[256])
             break;
     }
 
-    printf("\t%i heads\n", data[3]);
-    printf("\t%i bytes per track\n", data[4]);
-    printf("\t%i bytes per sector\n", data[5]);
-    printf("\t%i sectors per track\n", data[6]);
-
-    // 7-8 are for CF
+    if(!is_atapi)
+    {
+        printf("\t%i heads\n", data[3]);
+        printf("\t%i bytes per track\n", data[4]);
+        printf("\t%i bytes per sector\n", data[5]);
+        printf("\t%i sectors per track\n", data[6]);
+        // 7-8 are for CF
+    }
 
     get_string(data + 10, string_buf, 20);
     printf("\tserial no: \"%s\"\n", string_buf);
@@ -298,15 +318,32 @@ static void print_identify_result(uint16_t data[256])
     printf("\tfirmware rev: \"%s\"\n", string_buf);
     get_string(data + 27, string_buf, 40);
     printf("\tmodel no: \"%s\"\n", string_buf);
-    printf("\tmax sectors for r/w multi: %i\n", data[47] & 0xFF);
 
-    printf("\tstandard timer values %ssupported, IORDY %ssupported, IORDY may %sbe disabled, LBA %ssupported, DMA %ssupported\n",
-        (data[49] & (1 << 13)) ? "" : "not ",
-        (data[49] & (1 << 11)) ? "" : "may be ",
-        (data[49] & (1 << 10)) ? "" : "not ",
-        (data[49] & (1 <<  9)) ? "" : "not ",
-        (data[49] & (1 <<  8)) ? "" : "not "
-    );
+    if(!is_atapi)
+        printf("\tmax sectors for r/w multi: %i\n", data[47] & 0xFF);
+
+    if(is_atapi)
+    {
+        printf("\tinterleaved dma %ssupported, command queueing %ssupported, command overlap %ssupported, IORDY %ssupported, IORDY may %sbe disabled, LBA %ssupported, DMA %ssupported\n",
+            (data[49] & (1 << 15)) ? "" : "not ",
+            (data[49] & (1 << 14)) ? "" : "not ",
+            (data[49] & (1 << 13)) ? "" : "not ",
+            (data[49] & (1 << 11)) ? "" : "may be ",
+            (data[49] & (1 << 10)) ? "" : "not ",
+            (data[49] & (1 <<  9)) ? "" : "not ",
+            (data[49] & (1 <<  8)) ? "" : "not "
+        );
+    }
+    else
+    {
+        printf("\tstandard timer values %ssupported, IORDY %ssupported, IORDY may %sbe disabled, LBA %ssupported, DMA %ssupported\n",
+            (data[49] & (1 << 13)) ? "" : "not ",
+            (data[49] & (1 << 11)) ? "" : "may be ",
+            (data[49] & (1 << 10)) ? "" : "not ",
+            (data[49] & (1 <<  9)) ? "" : "not ",
+            (data[49] & (1 <<  8)) ? "" : "not "
+        );
+    }
 
     // another cap bit in 50
     // 51-52 are obsolete timing modes
@@ -315,18 +352,21 @@ static void print_identify_result(uint16_t data[256])
     bool w64_70_valid = (data[53] & (1 << 1));
     bool w88_valid = (data[53] & (1 << 2));
 
-    if(w54_58_valid)
+    if(!is_atapi)
     {
-        printf("\t%i cur cylinders\n", data[54]);
-        printf("\t%i cur heads\n", data[55]);
-        printf("\t%i cur sectors per track\n", data[56]);
-        printf("\t%i cur capacity in sectors\n", data[57] | data[58] << 16);
+        if(w54_58_valid)
+        {
+            printf("\t%i cur cylinders\n", data[54]);
+            printf("\t%i cur heads\n", data[55]);
+            printf("\t%i cur sectors per track\n", data[56]);
+            printf("\t%i cur capacity in sectors\n", data[57] | data[58] << 16);
+        }
+
+        printf("\tcur num sectors for multi: %i\n", data[59] & 0xFF);
+        printf("\t%i user addressable sectors\n", data[60] | data[61] << 16);
+
+        // 62 is single word dma modes
     }
-
-    printf("\tcur num sectors for multi: %i\n", data[59] & 0xFF);
-    printf("\t%i user addressable sectors\n", data[60] | data[61] << 16);
-
-    // 62 is single word dma modes
 
     printf("\tsupported multiword DMA modes: ");
     if(data[63] & (1 << 2))
@@ -354,6 +394,9 @@ static void print_identify_result(uint16_t data[256])
         printf("\tmin PIO cycle time (no IORDY): %ins\n", data[67]);
         printf("\tmin PIO cycle time (with IORDY): %ins\n", data[68]);
     }
+
+    // 71 ATAPI PACKET bus release time
+    // 72 ATAPI SERVICE bus release time
 
     printf("\tqueue depth: %i\n", data[75] + 1);
 
@@ -524,6 +567,8 @@ static void print_identify_result(uint16_t data[256])
     // 108-111 are world wide name
 
     // 119-120 are more features
+
+    // 125 ATAPI byte count=0
 
     // 214-216, 219 are for cache
 
@@ -800,6 +845,20 @@ static void test_ata()
     printf("\nread %ix1 random sectors in %llius %3.3f%s/s", count, time_us, speed, unit);
 }
 
+static void test_atapi()
+{
+    // don't need to wait for ready
+
+    // identify
+    write_register(ATAReg::Device, 0 << 4); // device id 0
+    write_command(ATACommand::IDENTIFY_PACKET_DEVICE);
+
+    uint16_t data[256];
+    do_pio_read(data, 256);
+
+    print_identify_result(data);
+}
+
 int main()
 {
     init_io();
@@ -814,8 +873,18 @@ int main()
 
     auto reset_time = absolute_time_diff_us(start, end);
     printf("Device reset done in %llius\n", reset_time);
+    // check signature
+    uint8_t lba_mid = read_register(ATAReg::LBAMid);
+    uint8_t lba_high = read_register(ATAReg::LBAHigh);
+    bool is_atapi = lba_mid == 0x14 && lba_high == 0xEB;
 
-    test_ata();
+    if(is_atapi)
+    {
+        printf("ATAPI device detected\n");
+        test_atapi();
+    }
+    else
+        test_ata();
 
     while(true)
     {
