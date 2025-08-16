@@ -680,20 +680,8 @@ static void print_gpt(uint16_t data[256])
 // for benchmark
 static uint16_t buf[256 * 512 / 2];
 
-int main()
+static void test_ata()
 {
-    init_io();
-
-    stdio_init_all();
-
-    printf("starting...\n");
-
-    auto start = get_absolute_time();
-    do_reset();
-    auto end = get_absolute_time();
-
-    auto reset_time = absolute_time_diff_us(start, end);
-    printf("Device reset done in %llius\n", reset_time);
 
     // make sure we're ready
     while(!check_ready());
@@ -777,14 +765,14 @@ int main()
         return speed;
     };
 
-    start = get_absolute_time();
+    auto start = get_absolute_time();
     int count = 0;
     for(int sector = 0; sector < 10 * 1024 * 1024 / 512; sector += 256, count++)
     {
         printf(".");
         read_sectors(0, sector, 256, buf);
     }
-    end = get_absolute_time();
+    auto end = get_absolute_time();
 
     auto time_us = absolute_time_diff_us(start, end);
     const char *unit;
@@ -810,6 +798,24 @@ int main()
     speed = format_speed(count * 1, time_us, unit);
     
     printf("\nread %ix1 random sectors in %llius %3.3f%s/s", count, time_us, speed, unit);
+}
+
+int main()
+{
+    init_io();
+
+    stdio_init_all();
+
+    printf("starting...\n");
+
+    auto start = get_absolute_time();
+    do_reset();
+    auto end = get_absolute_time();
+
+    auto reset_time = absolute_time_diff_us(start, end);
+    printf("Device reset done in %llius\n", reset_time);
+
+    test_ata();
 
     while(true)
     {
