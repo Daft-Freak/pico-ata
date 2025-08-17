@@ -37,9 +37,15 @@ enum ATAStatus
 enum class ATACommand
 {
     READ_SECTOR            = 0x20,
+    PACKET                 = 0xA0,
     IDENTIFY_PACKET_DEVICE = 0xA1,
     IDENTIFY_DEVICE        = 0xEC,
     SET_FEATURES           = 0xEF,
+};
+
+enum class SCSICommand
+{
+    INQUIRY = 0x12,
 };
 
 static const PIO ata_pio = pio0;
@@ -216,6 +222,25 @@ static void do_pio_read(uint16_t *data, int count)
         data[i] = pio_sm_get_blocking(ata_pio, ata_read_pio_sm);
 
     // wait for stall
+    while(!(ata_pio->fdebug & stall_mask));
+}
+
+static void do_pio_write(const uint16_t *data, int count)
+{
+    while(!check_data_request());
+
+    // set address
+    auto reg = ATAReg::Data;
+    gpio_put_masked(ATA_CS_PIN_MASK | ATA_ADDR_PIN_MASK, static_cast<int>(reg) >> 3 << ATA_CS_PIN_BASE | (static_cast<int>(reg) & 7) << ATA_ADDR_PIN_BASE);
+
+    uint32_t stall_mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + ata_write_pio_sm);
+
+    // TODO: DMA?
+    for(int i = 0; i < count; i++)
+        pio_sm_put_blocking(ata_pio, ata_write_pio_sm, data[i] << 16);
+
+    // wait for stall
+    ata_pio->fdebug |= stall_mask;
     while(!(ata_pio->fdebug & stall_mask));
 }
 
@@ -857,6 +882,43 @@ static void test_atapi()
     do_pio_read(data, 256);
 
     print_identify_result(data);
+
+    // now we should be ready
+    while(!check_ready());
+        
+    printf("ready\n");
+
+    // INQUIRY packet
+    int data_len = 36; // min
+    write_register(ATAReg::Features, 0);
+    write_register(ATAReg::LBAMid, data_len & 0xFF);
+    write_register(ATAReg::LBAHigh, (data_len >> 8) & 0xFF);
+    write_register(ATAReg::Device, 0 << 4); // device id 0
+    write_command(ATACommand::PACKET);
+
+    // assuming 12-byte
+    uint8_t command[12]{};
+    command[0] = int(SCSICommand::INQUIRY);
+    command[1] = 0;
+    command[2] = 0; // page
+    command[3] = data_len >> 8;
+    command[4] = data_len & 0xFF;
+    command[5] = 0; // control
+    do_pio_write((uint16_t *)command, 6);
+
+    // now the response
+    do_pio_read(data, data_len / 2);
+
+    printf("INQUIRY:\n");
+    auto data8 = (uint8_t *)data;
+    int qualifier = data8[0] >> 5;
+    int type = data[0] & 0x1F;
+    printf("\tqualifier %i, type %x\n", qualifier, type);
+    printf("\tremovable? %s\n", (data8[1] & 0x80) ? "yes" : "no");
+    // some other bits...
+    printf("\tvendor: \"%.8s\"\n", data8 + 8);
+    printf("\tproduct: \"%.16s\"\n", data8 + 16);
+    printf("\tversion: \"%.4s\"\n", data8 + 32);
 }
 
 int main()
