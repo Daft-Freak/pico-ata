@@ -265,6 +265,21 @@ static void do_pio_write(const uint16_t *data, int count)
     while(!(ata_pio->fdebug & stall_mask));
 }
 
+static void do_atapi_command(int device, int max_len, const uint8_t *command)
+{
+    write_register(ATAReg::Features, 0);
+    write_register(ATAReg::LBAMid, max_len & 0xFF);
+    write_register(ATAReg::LBAHigh, (max_len >> 8) & 0xFF);
+    write_register(ATAReg::Device, device << 4 /*device id*/);
+    write_command(ATACommand::PACKET);
+
+    // assuming 12-byte
+    do_pio_write((uint16_t *)command, 6);
+
+    // delay
+    read_register(ATAReg::AltStatus);
+}
+
 static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
 {
     // TODO: error checking
@@ -911,11 +926,6 @@ static void test_atapi()
 
     // INQUIRY packet
     int data_len = 36; // min
-    write_register(ATAReg::Features, 0);
-    write_register(ATAReg::LBAMid, data_len & 0xFF);
-    write_register(ATAReg::LBAHigh, (data_len >> 8) & 0xFF);
-    write_register(ATAReg::Device, 0 << 4); // device id 0
-    write_command(ATACommand::PACKET);
 
     // assuming 12-byte
     uint8_t command[12]{};
@@ -925,7 +935,7 @@ static void test_atapi()
     command[3] = data_len >> 8;
     command[4] = data_len & 0xFF;
     command[5] = 0; // control
-    do_pio_write((uint16_t *)command, 6);
+    do_atapi_command(0, data_len, command);
 
     // now the response
     do_pio_read(data, data_len / 2);
@@ -945,19 +955,10 @@ static void test_atapi()
     bool ready = false;
     for(int i = 0; i < 20; i++)
     {
-        write_register(ATAReg::Features, 0);
-        write_register(ATAReg::LBAMid, 0);
-        write_register(ATAReg::LBAHigh, 0);
-        write_register(ATAReg::Device, 0 << 4); // device id 0
-        write_command(ATACommand::PACKET);
-
         command[0] = int(SCSICommand::TEST_UNIT_READY);
         command[1] = command[2] = command[3] = command[4] = 0;
         command[5] = 0; // control
-        do_pio_write((uint16_t *)command, 6);
-
-        // delay
-        read_register(ATAReg::AltStatus);
+        do_atapi_command(0, 0, command);
 
         while(read_register(ATAReg::Status) & Status_BSY);
         uint8_t status = read_register(ATAReg::Status);
