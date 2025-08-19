@@ -14,8 +14,10 @@
 // includes CS and addr
 enum class ATAReg
 {
+    AltStatus   = 1 << 3 | 6,
     Data        = 2 << 3 | 0,
-    Features    = 2 << 3 | 1,
+    Error       = 2 << 3 | 1, // read-only
+    Features    = 2 << 3 | 1, // write-only
     SectorCount = 2 << 3 | 2,
     LBALow      = 2 << 3 | 3,
     LBAMid      = 2 << 3 | 4,
@@ -45,7 +47,26 @@ enum class ATACommand
 
 enum class SCSICommand
 {
-    INQUIRY = 0x12,
+    TEST_UNIT_READY = 0x00,
+    INQUIRY         = 0x12,
+};
+
+enum class SCSISenseKey
+{
+    NO_SENSE        = 0x0,
+    RECOVERED_ERROR = 0x1,
+    NOT_READY       = 0x2,
+    MEDIUM_ERROR    = 0x3,
+    HARDWARE_ERROR  = 0x4,
+    ILLEGAL_REQUEST = 0x5,
+    UNIT_ATTENTION  = 0x6,
+    DATA_PROTECT    = 0x7,
+    BLANK_CHECK     = 0x8,
+    VENDOR_SPECIFIC = 0x9,
+    COPY_ABORTED    = 0xA,
+    ABORTED_COMMAND = 0xB,
+    VOLUME_OVERFLOW = 0xD,
+    MISCOMPARE      = 0xE,
 };
 
 static const PIO ata_pio = pio0;
@@ -919,6 +940,46 @@ static void test_atapi()
     printf("\tvendor: \"%.8s\"\n", data8 + 8);
     printf("\tproduct: \"%.16s\"\n", data8 + 16);
     printf("\tversion: \"%.4s\"\n", data8 + 32);
+
+    // test ready
+    bool ready = false;
+    for(int i = 0; i < 20; i++)
+    {
+        write_register(ATAReg::Features, 0);
+        write_register(ATAReg::LBAMid, 0);
+        write_register(ATAReg::LBAHigh, 0);
+        write_register(ATAReg::Device, 0 << 4); // device id 0
+        write_command(ATACommand::PACKET);
+
+        command[0] = int(SCSICommand::TEST_UNIT_READY);
+        command[1] = command[2] = command[3] = command[4] = 0;
+        command[5] = 0; // control
+        do_pio_write((uint16_t *)command, 6);
+
+        // delay
+        read_register(ATAReg::AltStatus);
+
+        while(read_register(ATAReg::Status) & Status_BSY);
+        uint8_t status = read_register(ATAReg::Status);
+
+        if(status & Status_ERR) // for ATAPI, this is "check condition"
+        {
+            uint8_t err = read_register(ATAReg::Error);
+
+            printf("test unit ready sense key %X\n", err >> 4);
+        }
+        else
+        {
+            printf("test unit ready okay\n");
+            ready = true;
+            break;
+        }
+
+        sleep_ms(500);
+    }
+
+    if(!ready)
+        return;
 }
 
 int main()
