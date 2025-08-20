@@ -49,6 +49,7 @@ enum class SCSICommand
 {
     TEST_UNIT_READY = 0x00,
     INQUIRY         = 0x12,
+    READ_10         = 0x28,
 };
 
 enum class SCSISenseKey
@@ -783,6 +784,60 @@ static void print_gpt(uint16_t data[256])
     }
 }
 
+static void print_iso9660_volume_descriptor(uint8_t data[2048])
+{
+    if(memcmp(data + 1, "CD001", 5) != 0)
+        return;
+    
+    printf("volume descriptor type %i\n", data[0]);
+
+    // primary volume descriptor
+    if(data[0] == 1)
+    {
+        printf("\tsystem identifier: \"%.32s\"\n", data + 8);
+        printf("\tvolume identifier: \"%.32s\"\n", data + 40);
+
+        uint32_t val32 = data[80] | data[81] << 8 | data[82] << 16 | data[83] << 24;
+        printf("\tvolume space size: %lu\n", val32);
+        
+        uint16_t val16 = data[120] | data[121] << 8;
+        printf("\tvolume set size: %u\n", val16);
+        val16 = data[124] | data[125] << 8;
+        printf("\tvolume sequence number: %u\n", val16);
+        val16 = data[128] | data[129] << 8;
+        printf("\tlogical block size: %u\n", val16);
+
+        val32 = data[132] | data[133] << 8 | data[134] << 16 | data[135] << 24;
+        printf("\tpath table size: %lu\n", val32);
+
+        val32 = data[140] | data[141] << 8 | data[142] << 16 | data[143] << 24;
+        printf("\tpath table lba: %lu (le)", val32);
+        val32 = data[151] | data[150] << 8 | data[149] << 16 | data[148] << 24;
+        printf(" / %lu (be)\n", val32);
+
+        val32 = data[144] | data[145] << 8 | data[146] << 16 | data[147] << 24;
+        printf("\topt path table lba: %lu (le)", val32);
+        val32 = data[155] | data[154] << 8 | data[153] << 16 | data[152] << 24;
+        printf(" / %lu (be)\n", val32);
+
+        // root dir...
+
+        printf("\tvolume set identifier   : \"%.128s\"\n", data + 190);
+        printf("\tpublisher identifier    : \"%.128s\"\n", data + 318);
+        printf("\tdata preparer identifier: \"%.128s\"\n", data + 446);
+        printf("\tapplication identifier  : \"%.128s\"\n", data + 574);
+
+        printf("\tcopyright file identifier    : \"%.37s\"\n", data + 702);
+        printf("\tabstract file identifier     : \"%.37s\"\n", data + 739);
+        printf("\tbibliographic file identifier: \"%.37s\"\n", data + 776);
+
+        printf("\tvolume creation date    : \"%.16s\" %i\n", data + 813, int8_t(data[829]));
+        printf("\tvolume modification date: \"%.16s\" %i\n", data + 830, int8_t(data[846]));
+        printf("\tvolume expiration date  : \"%.16s\" %i\n", data + 847, int8_t(data[863]));
+        printf("\tvolume effective date   : \"%.16s\" %i\n", data + 864, int8_t(data[880]));
+    }
+}
+
 // for benchmark
 static uint16_t buf[256 * 512 / 2];
 
@@ -914,7 +969,7 @@ static void test_atapi()
     write_register(ATAReg::Device, 0 << 4); // device id 0
     write_command(ATACommand::IDENTIFY_PACKET_DEVICE);
 
-    uint16_t data[256];
+    uint16_t data[1024];
     do_pio_read(data, 256);
 
     print_identify_result(data);
@@ -981,6 +1036,31 @@ static void test_atapi()
 
     if(!ready)
         return;
+
+    // attempt some reading
+    uint32_t lba = 16;
+    data_len = 2048;
+
+    do
+    {
+
+        command[0] = int(SCSICommand::READ_10);
+        command[1] = 0; // FUA, DPO, RDPROTECT...
+        command[2] = lba >> 24;
+        command[3] = lba >> 16;
+        command[4] = lba >> 8;
+        command[5] = lba & 0xFF;
+        command[6] = 0; // group number
+        command[7] = 0; // len high
+        command[8] = 1; // len low
+        command[9] = 0; // control
+        do_atapi_command(0, data_len, command);
+
+        do_pio_read(data, data_len / 2);
+
+        print_iso9660_volume_descriptor(data8);
+        lba++;
+    } while(data8[0] != 255);
 }
 
 int main()
