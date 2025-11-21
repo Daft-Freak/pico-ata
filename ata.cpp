@@ -218,4 +218,29 @@ namespace ata
         ata_pio->fdebug |= stall_mask;
         while(!(ata_pio->fdebug & stall_mask));
     }
+
+    void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
+    {
+        // TODO: error checking
+        // TODO: timeout?
+
+        assert(device < 2);
+        assert(num_sectors <= 256);
+        assert(lba < 0x10000000); // TODO: LBA48
+
+        while(!check_ready());
+
+        write_register(ATAReg::SectorCount, num_sectors & 0xFF); // 0 == 256, so just throw away the high bit
+        write_register(ATAReg::LBALow, lba & 0xFF);
+        write_register(ATAReg::LBAMid, (lba >> 8) & 0xFF);
+        write_register(ATAReg::LBAHigh, (lba >> 16) & 0xFF);
+        write_register(ATAReg::Device, 1 << 6 /*LBA*/ | device << 4 /*device id*/ | ((lba >> 24) & 0xF));
+        write_command(ATACommand::READ_SECTOR);
+
+        for(int sector = 0; sector < num_sectors; sector++)
+        {
+            // 512 bytes per sector
+            do_pio_read(data + sector * 256, 256);
+        }
+    }
 }

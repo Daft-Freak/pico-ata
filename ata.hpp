@@ -61,4 +61,7 @@ namespace ata
     // PIO transfers
     void do_pio_read(uint16_t *data, int count);
     void do_pio_write(const uint16_t *data, int count);
+
+    // higher level commands
+    void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data);
 }

@@ -11,33 +11,6 @@
 #include "ata.hpp"
 #include "atapi.hpp"
 
-static void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
-{
-    using namespace ata;
-
-    // TODO: error checking
-    // TODO: timeout?
-
-    assert(device < 2);
-    assert(num_sectors <= 256);
-    assert(lba < 0x10000000); // TODO: LBA48
-
-    while(!check_ready());
-
-    write_register(ATAReg::SectorCount, num_sectors & 0xFF); // 0 == 256, so just throw away the high bit
-    write_register(ATAReg::LBALow, lba & 0xFF);
-    write_register(ATAReg::LBAMid, (lba >> 8) & 0xFF);
-    write_register(ATAReg::LBAHigh, (lba >> 16) & 0xFF);
-    write_register(ATAReg::Device, 1 << 6 /*LBA*/ | device << 4 /*device id*/ | ((lba >> 24) & 0xF));
-    write_command(ATACommand::READ_SECTOR);
-
-    for(int sector = 0; sector < num_sectors; sector++)
-    {
-        // 512 bytes per sector
-        do_pio_read(data + sector * 256, 256);
-    }
-}
-
 static void print_identify_result(uint16_t data[256])
 {
     auto get_string = [](uint16_t *in_ptr, char *out_ptr, int len)
@@ -423,7 +396,7 @@ static void print_mbr(uint16_t data[256])
             {
                 // technically some of these should be using CHS addressing...
                 uint16_t ebr_data[256];
-                read_sectors(0, lba_start + ext_lba_start, 1, ebr_data);
+                ata::read_sectors(0, lba_start + ext_lba_start, 1, ebr_data);
 
                 if(ebr_data[255] == 0xAA55)
                 {
@@ -486,7 +459,7 @@ static void print_gpt(uint16_t data[256])
         auto byte_offset = partition * partition_entry_size;
 
         if(byte_offset % sector_size == 0)
-            read_sectors(0, array_start_lba + byte_offset / sector_size, 1, (uint16_t *)sector_buf);
+            ata::read_sectors(0, array_start_lba + byte_offset / sector_size, 1, (uint16_t *)sector_buf);
 
         auto part_data = sector_buf + (byte_offset % sector_size);
 
@@ -618,12 +591,12 @@ static void test_ata()
     ata::adjust_for_min_cycle_time(min_cycle_time);
    
     // okay, lets try to read the MBR
-    read_sectors(0, 0, 1, data);
+    ata::read_sectors(0, 0, 1, data);
 
     if(((uint8_t *)data)[0x1BE + 4] == 0xEE)
     {
         printf("protective MBR, probably GPT...\n");
-        read_sectors(0, 1, 1, data);
+        ata::read_sectors(0, 1, 1, data);
         if(memcmp(data, "EFI PART", 8) == 0)
             print_gpt(data);
     }
@@ -657,7 +630,7 @@ static void test_ata()
     for(int sector = 0; sector < 10 * 1024 * 1024 / 512; sector += 256, count++)
     {
         printf(".");
-        read_sectors(0, sector, 256, buf);
+        ata::read_sectors(0, sector, 256, buf);
     }
     auto end = get_absolute_time();
 
@@ -677,7 +650,7 @@ static void test_ata()
     {
         int lba = distrib(gen);
 
-        read_sectors(0, lba, 1, buf);
+        ata::read_sectors(0, lba, 1, buf);
     }
     end = get_absolute_time();
 
