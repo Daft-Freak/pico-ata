@@ -15,6 +15,7 @@ pico_sdk_init()
 
 add_executable(pico-ata
     ata.cpp
+    atapi.cpp
     pico-ata.cpp
 )
 
