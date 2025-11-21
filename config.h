@@ -1,5 +1,7 @@
 #pragma once
 
+// the data, read, write and iordy pins are assigned to the same PIO SM, so need to all be within 0-31 or 16-47 
+
 // DD0-15
 #define ATA_DATA_PIN_BASE  0
 
