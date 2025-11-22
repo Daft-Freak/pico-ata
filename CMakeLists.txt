@@ -31,14 +31,10 @@ pico_set_program_version(pico-ata-test "0.1")
 pico_enable_stdio_uart(pico-ata-test 1)
 pico_enable_stdio_usb(pico-ata-test 1)
 
-# Add the standard library to the build
+# Add the libraries to the build
 target_link_libraries(pico-ata-test
     pico-ata
     pico_stdlib
-)
-
-# Add any user requested libraries
-target_link_libraries(pico-ata-test
     hardware_dma
     hardware_pio
 )
