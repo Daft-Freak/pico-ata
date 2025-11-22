@@ -11,11 +11,15 @@ project(pico-ata C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+add_library(pico-ata INTERFACE)
+target_sources(pico-ata INTERFACE
+    ata.cpp
+    atapi.cpp
+)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(pico-ata-test
-    ata.cpp
-    atapi.cpp
     pico-ata-test.cpp
 )
 
@@ -29,6 +33,7 @@ pico_enable_stdio_usb(pico-ata-test 1)
 
 # Add the standard library to the build
 target_link_libraries(pico-ata-test
+    pico-ata
     pico_stdlib
 )
 
