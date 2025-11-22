@@ -243,4 +243,12 @@ namespace ata
             do_pio_read(data + sector * 256, 256);
         }
     }
+
+    void identify_device(int device, uint16_t data[256], ATACommand command)
+    {
+        write_register(ATAReg::Device, device << 4);
+        write_command(command);
+
+        do_pio_read(data, 256);
+    }
 }

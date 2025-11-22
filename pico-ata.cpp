@@ -556,12 +556,8 @@ static void test_ata()
     printf("ready\n");
 
     // identify
-    write_register(ATAReg::Device, 0 << 4); // device id 0
-    write_command(ATACommand::IDENTIFY_DEVICE);
-
     uint16_t data[256];
-    do_pio_read(data, 256);
-
+    ata::identify_device(0, data);
     print_identify_result(data);
 
     // set PIO mode if >= 3
@@ -667,11 +663,8 @@ static void test_atapi()
     // don't need to wait for ready
 
     // identify
-    write_register(ATAReg::Device, 0 << 4); // device id 0
-    write_command(ATACommand::IDENTIFY_PACKET_DEVICE);
-
     uint16_t data[1024];
-    do_pio_read(data, 256);
+    ata::identify_device(0, data, ATACommand::IDENTIFY_PACKET_DEVICE);
 
     print_identify_result(data);
 

@@ -64,4 +64,6 @@ namespace ata
 
     // higher level commands
     void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data);
+
+    void identify_device(int device, uint16_t data[256], ATACommand command = ATACommand::IDENTIFY_DEVICE);
 }
