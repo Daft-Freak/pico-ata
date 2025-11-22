@@ -17,13 +17,17 @@ target_sources(pico-ata INTERFACE
     atapi.cpp
 )
 
+target_link_libraries(pico-ata INTERFACE
+    hardware_pio
+)
+
+pico_generate_pio_header(pico-ata ${CMAKE_CURRENT_LIST_DIR}/ata.pio)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(pico-ata-test
     pico-ata-test.cpp
 )
-
-pico_generate_pio_header(pico-ata-test ${CMAKE_CURRENT_LIST_DIR}/ata.pio)
 
 pico_set_program_name(pico-ata-test "pico-ata-test")
 pico_set_program_version(pico-ata-test "0.1")
@@ -35,8 +39,6 @@ pico_enable_stdio_usb(pico-ata-test 1)
 target_link_libraries(pico-ata-test
     pico-ata
     pico_stdlib
-    hardware_dma
-    hardware_pio
 )
 
 target_include_directories(pico-ata-test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
