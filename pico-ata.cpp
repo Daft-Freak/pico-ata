@@ -563,14 +563,8 @@ static void test_ata()
     // set PIO mode if >= 3
     if((data[53] & (1 << 1)) && (data[64] & (1 << 0)))
     {
-        while(!check_ready());
-
         int mode = (data[64] & (1 << 1)) ? 4 : 3;
-
-        write_register(ATAReg::Features, 3);
-        write_register(ATAReg::SectorCount, 1 << 3/*PIO flow control mode*/ | mode);
-        write_register(ATAReg::Device, 0 << 4); // device id 0
-        write_command(ATACommand::SET_FEATURES);
+        ata::set_features(0, ata::ATAFeature::SetTransferMode, 1 << 3/*PIO flow control mode*/ | mode);
     }
 
     // reconfigure for speed

@@ -246,9 +246,24 @@ namespace ata
 
     void identify_device(int device, uint16_t data[256], ATACommand command)
     {
+        // does not wait for ready as ATAPI devices aren't ready at this point
+
         write_register(ATAReg::Device, device << 4);
         write_command(command);
 
         do_pio_read(data, 256);
+    }
+
+    // sector count meaning depends on the feature
+    void set_features(int device, ATAFeature feature, uint8_t sectorCount)
+    {
+        while(!check_ready());
+
+        write_register(ATAReg::Features, static_cast<uint16_t>(feature));
+        write_register(ATAReg::SectorCount, sectorCount);
+        write_register(ATAReg::Device, device << 4);
+        write_command(ATACommand::SET_FEATURES);
+
+        // TODO: check for errors
     }
 }

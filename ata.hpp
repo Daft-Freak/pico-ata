@@ -37,6 +37,11 @@ namespace ata
         SET_FEATURES           = 0xEF,
     };
 
+    enum class ATAFeature
+    {
+        SetTransferMode = 3,
+    };
+
     // initialisation
     void init_io();
 
@@ -66,4 +71,5 @@ namespace ata
     void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data);
 
     void identify_device(int device, uint16_t data[256], ATACommand command = ATACommand::IDENTIFY_DEVICE);
+    void set_features(int device, ATAFeature feature, uint8_t sectorCount = 0);
 }
