@@ -17,6 +17,8 @@ target_sources(pico-ata INTERFACE
     atapi.cpp
 )
 
+target_include_directories(pico-ata INTERFACE ${CMAKE_CURRENT_LIST_DIR})
+
 target_link_libraries(pico-ata INTERFACE
     hardware_pio
 )
@@ -41,8 +43,6 @@ target_link_libraries(pico-ata-test
     pico_stdlib
 )
 
-target_include_directories(pico-ata-test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-
 target_compile_definitions(pico-ata-test PUBLIC
     PICO_DEFAULT_UART=0
     PICO_DEFAULT_UART_TX_PIN=32
@@ -56,3 +56,5 @@ pico_add_extra_outputs(pico-ata-test)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pico-ata-test.uf2
     DESTINATION bin
 )
+
+add_subdirectory(usb-dev)
