@@ -116,6 +116,32 @@ bool tud_msc_is_writable_cb(uint8_t lun)
     return false;
 }
 
+static void setup_pio_timing()
+{
+    // this only covers "advanced" PIO modes (3-4)
+    // modes 0-2 use word 51
+
+    // identify
+    uint16_t data[256];
+    ata::identify_device(0, data);
+
+    ata::IdentityParser parser(data);
+
+    // set "advanced" PIO mode (with flow control)
+    if(parser.timing_params_valid() && parser.advanced_pio_modes_supported())
+    {
+        int mode = (parser.advanced_pio_modes_supported() & (1 << 1)) ? 4 : 3;
+        ata::set_features(0, ata::ATAFeature::SetTransferMode, 1 << 3/*PIO flow control mode*/ | mode);
+    }
+
+    // reconfigure for speed
+    int min_cycle_time = 600;
+    if(parser.timing_params_valid())
+        min_cycle_time = parser.min_pio_cycle_time_iordy();
+
+    ata::adjust_for_min_cycle_time(min_cycle_time);
+}
+
 int main()
 {
     ata::init_io();
@@ -125,6 +151,8 @@ int main()
     stdio_init_all();
 
     ata::do_reset();
+
+    setup_pio_timing();
 
     // TODO: check if ATAPI
 
