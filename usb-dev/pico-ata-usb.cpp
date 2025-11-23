@@ -21,11 +21,18 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
     (void) lun;
 
     const char vid[] = USB_VENDOR_STR;
-    const char pid[] = USB_PRODUCT_STR " Storage";
     const char rev[] = "1.0";
 
+    // copy some of the model number to the product id
+    uint16_t data[256];
+    ata::identify_device(0, data);
+    ata::IdentityParser parser(data);
+
+    char str_buf[41];
+    parser.model_number(str_buf);
+    memcpy(product_id , str_buf, 16);
+
     memcpy(vendor_id  , vid, strlen(vid));
-    memcpy(product_id , pid, strlen(pid));
     memcpy(product_rev, rev, strlen(rev));
 }
 
