@@ -554,7 +554,7 @@ static void print_iso9660_volume_descriptor(uint8_t data[2048])
 // for benchmark
 static uint16_t buf[256 * 512 / 2];
 
-static void test_ata()
+static void test_ata(int device)
 {
     using namespace ata;
 
@@ -565,7 +565,7 @@ static void test_ata()
 
     // identify
     uint16_t data[256];
-    ata::identify_device(0, data);
+    ata::identify_device(device, data);
     print_identify_result(data);
 
     IdentityParser parser(data);
@@ -574,7 +574,7 @@ static void test_ata()
     if(parser.timing_params_valid() && parser.advanced_pio_modes_supported())
     {
         int mode = (parser.advanced_pio_modes_supported() & (1 << 1)) ? 4 : 3;
-        ata::set_features(0, ata::ATAFeature::SetTransferMode, 1 << 3/*PIO flow control mode*/ | mode);
+        ata::set_features(device, ata::ATAFeature::SetTransferMode, 1 << 3/*PIO flow control mode*/ | mode);
     }
 
     // reconfigure for speed
@@ -591,12 +591,12 @@ static void test_ata()
     ata::adjust_for_min_cycle_time(min_cycle_time);
    
     // okay, lets try to read the MBR
-    ata::read_sectors(0, 0, 1, data);
+    ata::read_sectors(device, 0, 1, data);
 
     if(((uint8_t *)data)[0x1BE + 4] == 0xEE)
     {
         printf("protective MBR, probably GPT...\n");
-        ata::read_sectors(0, 1, 1, data);
+        ata::read_sectors(device, 1, 1, data);
         if(memcmp(data, "EFI PART", 8) == 0)
             print_gpt(data);
     }
@@ -630,7 +630,7 @@ static void test_ata()
     for(int sector = 0; sector < 10 * 1024 * 1024 / 512; sector += 256, count++)
     {
         printf(".");
-        ata::read_sectors(0, sector, 256, buf);
+        ata::read_sectors(device, sector, 256, buf);
     }
     auto end = get_absolute_time();
 
@@ -658,9 +658,11 @@ static void test_ata()
     speed = format_speed(count * 1, time_us, unit);
     
     printf("\nread %ix1 random sectors in %llius %3.3f%s/s", count, time_us, speed, unit);
+
+    printf("\n");
 }
 
-static void test_atapi()
+static void test_atapi(int device)
 {
     using namespace ata;
 
@@ -668,7 +670,7 @@ static void test_atapi()
 
     // identify
     uint16_t data[1024];
-    ata::identify_device(0, data, ATACommand::IDENTIFY_PACKET_DEVICE);
+    ata::identify_device(1, data, ATACommand::IDENTIFY_PACKET_DEVICE);
 
     print_identify_result(data);
 
@@ -688,7 +690,7 @@ static void test_atapi()
     command[3] = data_len >> 8;
     command[4] = data_len & 0xFF;
     command[5] = 0; // control
-    atapi::do_command(0, data_len, command);
+    atapi::do_command(device, data_len, command);
 
     // now the response
     do_pio_read(data, data_len / 2);
@@ -711,7 +713,7 @@ static void test_atapi()
         command[0] = int(SCSICommand::TEST_UNIT_READY);
         command[1] = command[2] = command[3] = command[4] = 0;
         command[5] = 0; // control
-        atapi::do_command(0, 0, command);
+        atapi::do_command(device, 0, command);
 
         while(read_register(ATAReg::Status) & Status_BSY);
         uint8_t status = read_register(ATAReg::Status);
@@ -752,7 +754,7 @@ static void test_atapi()
         command[7] = 0; // len high
         command[8] = 1; // len low
         command[9] = 0; // control
-        atapi::do_command(0, data_len, command);
+        atapi::do_command(device, data_len, command);
 
         do_pio_read(data, data_len / 2);
 
@@ -775,18 +777,31 @@ int main()
 
     auto reset_time = absolute_time_diff_us(start, end);
     printf("Device reset done in %llius\n", reset_time);
-    // check signature
-    uint8_t lba_mid = ata::read_register(ata::ATAReg::LBAMid);
-    uint8_t lba_high = ata::read_register(ata::ATAReg::LBAHigh);
-    bool is_atapi = lba_mid == 0x14 && lba_high == 0xEB;
 
-    if(is_atapi)
+    for(int i = 0; i < 2; i++)
     {
-        printf("ATAPI device detected\n");
-        test_atapi();
+        bool is_atapi = false;
+        
+        // attempt a DEVICE RESET to set the signature
+        if(ata::device_reset(i))
+        {
+            // check signature
+            uint8_t lba_mid = ata::read_register(ata::ATAReg::LBAMid);
+            uint8_t lba_high = ata::read_register(ata::ATAReg::LBAHigh);
+            is_atapi = lba_mid == 0x14 && lba_high == 0xEB;
+        }
+
+        if(is_atapi)
+        {
+            printf("Device %i is ATAPI\n", i);
+            test_atapi(i);
+        }
+        else
+        {
+            printf("Device %i is not ATAPI\n", i);
+            test_ata(i);
+        }
     }
-    else
-        test_ata();
 
     while(true)
     {
