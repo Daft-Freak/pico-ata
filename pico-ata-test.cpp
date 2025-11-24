@@ -727,24 +727,10 @@ static void test_atapi(int device)
 
     // attempt some reading
     uint32_t lba = 16;
-    int data_len = 2048;
 
     do
     {
-        uint8_t command[12]{};
-        command[0] = int(SCSICommand::READ_10);
-        command[1] = 0; // FUA, DPO, RDPROTECT...
-        command[2] = lba >> 24;
-        command[3] = lba >> 16;
-        command[4] = lba >> 8;
-        command[5] = lba & 0xFF;
-        command[6] = 0; // group number
-        command[7] = 0; // len high
-        command[8] = 1; // len low
-        command[9] = 0; // control
-        atapi::do_command(device, data_len, command);
-
-        do_pio_read(data, data_len / 2);
+        atapi::read(device, lba, 1, data8);
 
         print_iso9660_volume_descriptor(data8);
         lba++;

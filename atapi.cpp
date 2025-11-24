@@ -59,4 +59,25 @@ namespace atapi
         // now the response
         do_pio_read(reinterpret_cast<uint16_t *>(data), data_len / 2);
     }
+
+    void read(int device, uint32_t lba, uint16_t num_sectors, uint8_t *data, int sector_size)
+    {
+        // TODO: multiple sectors probably needs more work...
+        int data_len = num_sectors * sector_size;
+
+        uint8_t command[12]{};
+        command[0] = int(SCSICommand::READ_10);
+        command[1] = 0; // FUA, DPO, RDPROTECT...
+        command[2] = lba >> 24;
+        command[3] = lba >> 16;
+        command[4] = lba >> 8;
+        command[5] = lba & 0xFF;
+        command[6] = 0; // group number
+        command[7] = num_sectors >> 8; // len high
+        command[8] = num_sectors; // len low
+        command[9] = 0; // control
+        atapi::do_command(device, data_len, command);
+
+        do_pio_read(reinterpret_cast<uint16_t *>(data), data_len / 2);
+    }
 }
