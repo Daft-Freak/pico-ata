@@ -703,23 +703,14 @@ static void test_atapi(int device)
     printf("\tversion: \"%.4s\"\n", data8 + 32);
 
     // test ready
-    uint8_t command[12]{};
     bool ready = false;
     for(int i = 0; i < 20; i++)
     {
-        command[0] = int(SCSICommand::TEST_UNIT_READY);
-        command[1] = command[2] = command[3] = command[4] = 0;
-        command[5] = 0; // control
-        atapi::do_command(device, 0, command);
-
-        while(read_register(ATAReg::Status) & Status_BSY);
-        uint8_t status = read_register(ATAReg::Status);
-
-        if(status & Status_ERR) // for ATAPI, this is "check condition"
+        if(!atapi::test_unit_ready(device))
         {
-            uint8_t err = read_register(ATAReg::Error);
+            auto sense_key = atapi::get_sense_key();
 
-            printf("test unit ready sense key %X\n", err >> 4);
+            printf("test unit ready sense key %X\n", int(sense_key));
         }
         else
         {
@@ -740,7 +731,7 @@ static void test_atapi(int device)
 
     do
     {
-
+        uint8_t command[12]{};
         command[0] = int(SCSICommand::READ_10);
         command[1] = 0; // FUA, DPO, RDPROTECT...
         command[2] = lba >> 24;

@@ -21,6 +21,29 @@ namespace atapi
         read_register(ATAReg::AltStatus);
     }
 
+    SCSISenseKey get_sense_key()
+    {
+        return static_cast<SCSISenseKey>((read_register(ATAReg::Error) & 0xFF) >> 4);
+    }
+
+    bool test_unit_ready(int device)
+    {
+        uint8_t command[12]{};
+
+        command[0] = int(SCSICommand::TEST_UNIT_READY);
+        command[5] = 0; // control
+        atapi::do_command(device, 0, command);
+
+        while(read_register(ATAReg::Status) & Status_BSY);
+    
+        uint8_t status = read_register(ATAReg::Status);
+
+        if(status & Status_ERR) // for ATAPI, this is "check condition"
+            return false;
+        
+        return true;
+    }
+
     void inquiry(int device, uint8_t *data, int data_len)
     {
         // assuming 12-byte
