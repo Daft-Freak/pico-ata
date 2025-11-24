@@ -20,4 +20,20 @@ namespace atapi
         // delay
         read_register(ATAReg::AltStatus);
     }
+
+    void inquiry(int device, uint8_t *data, int data_len)
+    {
+        // assuming 12-byte
+        uint8_t command[12]{};
+        command[0] = int(SCSICommand::INQUIRY);
+        command[1] = 0;
+        command[2] = 0; // page
+        command[3] = data_len >> 8;
+        command[4] = data_len & 0xFF;
+        command[5] = 0; // control
+        atapi::do_command(device, data_len, command);
+
+        // now the response
+        do_pio_read(reinterpret_cast<uint16_t *>(data), data_len / 2);
+    }
 }

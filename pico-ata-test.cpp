@@ -688,23 +688,11 @@ static void test_atapi(int device)
     printf("ready\n");
 
     // INQUIRY packet
-    int data_len = 36; // min
-
-    // assuming 12-byte
-    uint8_t command[12]{};
-    command[0] = int(SCSICommand::INQUIRY);
-    command[1] = 0;
-    command[2] = 0; // page
-    command[3] = data_len >> 8;
-    command[4] = data_len & 0xFF;
-    command[5] = 0; // control
-    atapi::do_command(device, data_len, command);
-
-    // now the response
-    do_pio_read(data, data_len / 2);
+    auto data8 = (uint8_t *)data;
+    atapi::inquiry(device, data8);
 
     printf("INQUIRY:\n");
-    auto data8 = (uint8_t *)data;
+    
     int qualifier = data8[0] >> 5;
     int type = data[0] & 0x1F;
     printf("\tqualifier %i, type %x\n", qualifier, type);
@@ -715,6 +703,7 @@ static void test_atapi(int device)
     printf("\tversion: \"%.4s\"\n", data8 + 32);
 
     // test ready
+    uint8_t command[12]{};
     bool ready = false;
     for(int i = 0; i < 20; i++)
     {
@@ -747,7 +736,7 @@ static void test_atapi(int device)
 
     // attempt some reading
     uint32_t lba = 16;
-    data_len = 2048;
+    int data_len = 2048;
 
     do
     {
