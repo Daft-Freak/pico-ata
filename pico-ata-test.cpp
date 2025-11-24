@@ -678,7 +678,7 @@ static void test_atapi(int device)
 
     // identify
     uint16_t data[1024];
-    ata::identify_device(1, data, ATACommand::IDENTIFY_PACKET_DEVICE);
+    ata::identify_device(device, data, ATACommand::IDENTIFY_PACKET_DEVICE);
 
     print_identify_result(data);
 
