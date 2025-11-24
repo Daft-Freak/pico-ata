@@ -233,10 +233,7 @@ namespace ata
 
             // check for !BSY
             if(!(status & Status_BSY))
-                return true;
-
-            if(status & Status_ERR)
-                return false;
+                return !(status & Status_ERR); // return true if no error
         }
     }
 
