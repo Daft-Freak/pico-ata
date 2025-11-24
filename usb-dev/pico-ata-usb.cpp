@@ -10,6 +10,7 @@
 
 // USB MSC glue
 static bool storageEjected = false;
+static bool device_detected = false;
 
 void tud_mount_cb()
 {
@@ -24,13 +25,16 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
     const char rev[] = "1.0";
 
     // copy some of the model number to the product id
-    uint16_t data[256];
-    ata::identify_device(0, data);
-    ata::IdentityParser parser(data);
+    if(device_detected)
+    {
+        uint16_t data[256];
+        ata::identify_device(0, data);
+        ata::IdentityParser parser(data);
 
-    char str_buf[41];
-    parser.model_number(str_buf);
-    memcpy(product_id , str_buf, 16);
+        char str_buf[41];
+        parser.model_number(str_buf);
+        memcpy(product_id , str_buf, 16);
+    }
 
     memcpy(vendor_id  , vid, strlen(vid));
     memcpy(product_rev, rev, strlen(rev));
@@ -38,7 +42,7 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
-    if(storageEjected /*|| Filesystem::getNumSectors() == 0*/)
+    if(storageEjected || !device_detected)
     {
         tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);
         return false;
@@ -50,6 +54,13 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 void tud_msc_capacity_cb(uint8_t lun, uint32_t *block_count, uint16_t *block_size)
 {
     (void) lun;
+
+    if(!device_detected)
+    {
+        *block_count = 0;
+        *block_size = 0;
+        return;
+    }
 
     uint16_t data[256];
     ata::identify_device(0, data);
@@ -159,9 +170,27 @@ int main()
 
     ata::do_reset();
 
-    setup_pio_timing();
-
     // TODO: check if ATAPI
+
+    // make sure we're ready
+    auto timeout = make_timeout_time_ms(10000);
+    bool ready = true;
+    while(!ata::check_ready())
+    {
+        if(time_reached(timeout))
+        {
+            printf("timeout waiting for ready\n");
+            ready = false;
+            break;
+        }
+
+        tud_task();
+    }
+
+    device_detected = ready;
+
+    if(device_detected)
+        setup_pio_timing();
 
     while(true)
     {
