@@ -168,17 +168,26 @@ namespace ata
         return !(status & Status_BSY) && (status & Status_DRDY);
     }
 
-    bool check_data_request()
+    bool do_pio_read(uint16_t *data, int count)
     {
-        auto status = read_register(ATAReg::Status);
+        // poll status
+        // TODO: timeout
+        while(true)
+        {
+            auto status = read_register(ATAReg::Status);
 
-        // !BSY && DRQ
-        return !(status & Status_BSY) && (status & Status_DRQ);
-    }
+            // ignore bsy
+            if(status & Status_BSY)
+                continue;
 
-    void do_pio_read(uint16_t *data, int count)
-    {
-        while(!check_data_request());
+            // done if !BSY && DRQ
+            if(status & Status_DRQ)
+                break;
+
+            // fail if error
+            if(status & Status_ERR)
+                return false;
+        }
 
         assert(count > 0);
         assert(count <= 0x10000);
@@ -198,11 +207,29 @@ namespace ata
 
         // wait for stall
         while(!(ata_pio->fdebug & stall_mask));
+
+        return true;
     }
 
-    void do_pio_write(const uint16_t *data, int count)
+    bool do_pio_write(const uint16_t *data, int count)
     {
-        while(!check_data_request());
+        // poll status
+        while(true)
+        {
+            auto status = read_register(ATAReg::Status);
+
+            // ignore bsy
+            if(status & Status_BSY)
+                continue;
+
+            // done if !BSY && DRQ
+            if(status & Status_DRQ)
+                break;
+
+            // fail if error
+            if(status & Status_ERR)
+                return false;
+        }
 
         // set address
         auto reg = ATAReg::Data;
@@ -217,6 +244,8 @@ namespace ata
         // wait for stall
         ata_pio->fdebug |= stall_mask;
         while(!(ata_pio->fdebug & stall_mask));
+
+        return true;
     }
 
     bool device_reset(int device)

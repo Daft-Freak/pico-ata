@@ -65,8 +65,8 @@ namespace ata
     bool check_data_request();
 
     // PIO transfers
-    void do_pio_read(uint16_t *data, int count);
-    void do_pio_write(const uint16_t *data, int count);
+    bool do_pio_read(uint16_t *data, int count);
+    bool do_pio_write(const uint16_t *data, int count);
 
     // higher level commands
     bool device_reset(int device);
