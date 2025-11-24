@@ -219,6 +219,27 @@ namespace ata
         while(!(ata_pio->fdebug & stall_mask));
     }
 
+    bool device_reset(int device)
+    {
+        write_register(ATAReg::Device, device << 4 /*device id*/);
+        write_command(ATACommand::DEVICE_RESET);
+
+        sleep_us(1);
+
+        // wait for either !BSY or ERR
+        while(true)
+        {
+            auto status = read_register(ATAReg::Status);
+
+            // check for !BSY
+            if(!(status & Status_BSY))
+                return true;
+
+            if(status & Status_ERR)
+                return false;
+        }
+    }
+
     void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
     {
         // TODO: error checking

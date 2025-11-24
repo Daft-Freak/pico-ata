@@ -30,6 +30,7 @@ namespace ata
 
     enum class ATACommand
     {
+        DEVICE_RESET           = 0x08,
         READ_SECTOR            = 0x20,
         PACKET                 = 0xA0,
         IDENTIFY_PACKET_DEVICE = 0xA1,
@@ -68,6 +69,8 @@ namespace ata
     void do_pio_write(const uint16_t *data, int count);
 
     // higher level commands
+    bool device_reset(int device);
+
     void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data);
 
     void identify_device(int device, uint16_t data[256], ATACommand command = ATACommand::IDENTIFY_DEVICE);
