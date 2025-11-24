@@ -23,6 +23,8 @@ target_compile_definitions(pico-ata-usb PUBLIC
     PICO_DEFAULT_UART=0
     PICO_DEFAULT_UART_TX_PIN=32
     PICO_DEFAULT_UART_RX_PIN=33
+    PICO_DEFAULT_LED_PIN=31
+    PICO_DEFAULT_LED_PIN_INVERTED=1
 )
 
 target_compile_options(pico-ata-usb PRIVATE -Wall)

@@ -12,6 +12,13 @@
 static bool storage_ejected = false;
 static bool device_detected = false;
 
+void set_activity_led(bool on)
+{
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(PICO_DEFAULT_LED_PIN, on != PICO_DEFAULT_LED_PIN_INVERTED);
+#endif
+}
+
 void tud_mount_cb()
 {
     storage_ejected = false;
@@ -91,9 +98,13 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buff
 {
     (void) lun;
 
+    set_activity_led(true);
+
     // uh, ATA words, not ARM words
     auto word_buf = reinterpret_cast<uint16_t *>(buffer);
     ata::read_sectors(0, lba, bufsize / 512, word_buf);
+
+    set_activity_led(false);
 
     return bufsize;
 }
@@ -163,6 +174,12 @@ static void setup_pio_timing()
 int main()
 {
     ata::init_io();
+
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_LED_PIN, PICO_DEFAULT_LED_PIN_INVERTED);
+    gpio_set_function(PICO_DEFAULT_LED_PIN, GPIO_FUNC_SIO);
+#endif
 
     tusb_init();
 
