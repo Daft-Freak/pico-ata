@@ -559,7 +559,15 @@ static void test_ata(int device)
     using namespace ata;
 
     // make sure we're ready
-    while(!check_ready());
+    auto timeout = make_timeout_time_ms(10000);
+    while(!check_ready())
+    {
+        if(time_reached(timeout))
+        {
+            printf("timeout waiting for ready on device %i\n", device);
+            return;
+        }
+    }
         
     printf("ready\n");
 
