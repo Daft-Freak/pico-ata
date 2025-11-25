@@ -168,6 +168,20 @@ namespace ata
         return !(status & Status_BSY) && (status & Status_DRDY);
     }
 
+    bool wait_not_busy_check_error()
+    {
+        // wait for !BSY, check ERR
+        // TODO: timeout and fail
+        while(true)
+        {
+            auto status = read_register(ATAReg::Status);
+
+            // check for !BSY
+            if(!(status & Status_BSY))
+                return !(status & Status_ERR); // return true if no error
+        }
+    }
+
     bool do_pio_read(uint16_t *data, int count)
     {
         // poll status
@@ -255,20 +269,11 @@ namespace ata
 
         sleep_us(1);
 
-        // wait for either !BSY or ERR
-        while(true)
-        {
-            auto status = read_register(ATAReg::Status);
-
-            // check for !BSY
-            if(!(status & Status_BSY))
-                return !(status & Status_ERR); // return true if no error
-        }
+        return wait_not_busy_check_error();
     }
 
-    void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
+    int read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data)
     {
-        // TODO: error checking
         // TODO: timeout?
 
         assert(device < 2);
@@ -284,25 +289,29 @@ namespace ata
         write_register(ATAReg::Device, 1 << 6 /*LBA*/ | device << 4 /*device id*/ | ((lba >> 24) & 0xF));
         write_command(ATACommand::READ_SECTOR);
 
-        for(int sector = 0; sector < num_sectors; sector++)
+        int sector;
+        for(sector = 0; sector < num_sectors; sector++)
         {
             // 512 bytes per sector
-            do_pio_read(data + sector * 256, 256);
+            if(!do_pio_read(data + sector * 256, 256))
+                break;
         }
+
+        return sector;
     }
 
-    void identify_device(int device, uint16_t data[256], ATACommand command)
+    bool identify_device(int device, uint16_t data[256], ATACommand command)
     {
         // does not wait for ready as ATAPI devices aren't ready at this point
 
         write_register(ATAReg::Device, device << 4);
         write_command(command);
 
-        do_pio_read(data, 256);
+        return do_pio_read(data, 256);
     }
 
     // sector count meaning depends on the feature
-    void set_features(int device, ATAFeature feature, uint8_t sectorCount)
+    bool set_features(int device, ATAFeature feature, uint8_t sectorCount)
     {
         while(!check_ready());
 
@@ -311,6 +320,6 @@ namespace ata
         write_register(ATAReg::Device, device << 4);
         write_command(ATACommand::SET_FEATURES);
 
-        // TODO: check for errors
+        return wait_not_busy_check_error();
     }
 }

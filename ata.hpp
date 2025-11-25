@@ -70,8 +70,8 @@ namespace ata
     // higher level commands
     bool device_reset(int device);
 
-    void read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data);
+    int read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data);
 
-    void identify_device(int device, uint16_t data[256], ATACommand command = ATACommand::IDENTIFY_DEVICE);
-    void set_features(int device, ATAFeature feature, uint8_t sectorCount = 0);
+    bool identify_device(int device, uint16_t data[256], ATACommand command = ATACommand::IDENTIFY_DEVICE);
+    bool set_features(int device, ATAFeature feature, uint8_t sectorCount = 0);
 }
