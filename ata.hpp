@@ -63,10 +63,12 @@ namespace ata
 
     // status helpers
     bool check_ready();
+    bool wait_ready(uint32_t timeout_ms = 1000);
+    bool wait_data_request(uint32_t timeout_ms = 1000);
 
     // PIO transfers
-    bool do_pio_read(uint16_t *data, int count);
-    bool do_pio_write(const uint16_t *data, int count);
+    bool do_pio_read(uint16_t *data, int count, uint32_t timeout_ms = 1000);
+    bool do_pio_write(const uint16_t *data, int count, uint32_t timeout_ms = 1000);
 
     // higher level commands
     bool device_reset(int device);
