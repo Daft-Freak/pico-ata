@@ -62,7 +62,6 @@ namespace ata
 
     // status helpers
     bool check_ready();
-    bool check_data_request();
 
     // PIO transfers
     bool do_pio_read(uint16_t *data, int count);
