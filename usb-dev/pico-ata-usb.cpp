@@ -102,18 +102,25 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buff
 
     // uh, ATA words, not ARM words
     auto word_buf = reinterpret_cast<uint16_t *>(buffer);
-    ata::read_sectors(0, lba, bufsize / 512, word_buf);
+    auto read = ata::read_sectors(0, lba, bufsize / 512, word_buf);
 
     set_activity_led(false);
 
-    return bufsize;
+    return read * 512;
 }
 
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize)
 {
     (void) lun;
 
-    return -1;
+    set_activity_led(true);
+
+    auto word_buf = reinterpret_cast<uint16_t *>(buffer);
+    auto written = ata::write_sectors(0, lba, bufsize / 512, word_buf);
+
+    set_activity_led(false);
+
+    return written * 512;
 }
 
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
@@ -142,7 +149,7 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
 
 bool tud_msc_is_writable_cb(uint8_t lun)
 {
-    return false;
+    return true;
 }
 
 static void setup_pio_timing()
