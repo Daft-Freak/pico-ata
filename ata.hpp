@@ -32,6 +32,7 @@ namespace ata
     {
         DEVICE_RESET           = 0x08,
         READ_SECTOR            = 0x20,
+        WRITE_SECTOR           = 0x30,
         PACKET                 = 0xA0,
         IDENTIFY_PACKET_DEVICE = 0xA1,
         IDENTIFY_DEVICE        = 0xEC,
@@ -71,6 +72,7 @@ namespace ata
     bool device_reset(int device);
 
     int read_sectors(int device, uint32_t lba, int num_sectors, uint16_t *data);
+    int write_sectors(int device, uint32_t lba, int num_sectors, const uint16_t *data);
 
     bool identify_device(int device, uint16_t data[256], ATACommand command = ATACommand::IDENTIFY_DEVICE);
     bool set_features(int device, ATAFeature feature, uint8_t sectorCount = 0);

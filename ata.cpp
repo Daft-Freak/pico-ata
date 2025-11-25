@@ -300,6 +300,32 @@ namespace ata
         return sector;
     }
 
+    int write_sectors(int device, uint32_t lba, int num_sectors, const uint16_t *data)
+    {
+        assert(device < 2);
+        assert(num_sectors <= 256);
+        assert(lba < 0x10000000); // TODO: LBA48
+
+        while(!check_ready());
+
+        write_register(ATAReg::SectorCount, num_sectors & 0xFF); // 0 == 256, so just throw away the high bit
+        write_register(ATAReg::LBALow, lba & 0xFF);
+        write_register(ATAReg::LBAMid, (lba >> 8) & 0xFF);
+        write_register(ATAReg::LBAHigh, (lba >> 16) & 0xFF);
+        write_register(ATAReg::Device, 1 << 6 /*LBA*/ | device << 4 /*device id*/ | ((lba >> 24) & 0xF));
+        write_command(ATACommand::WRITE_SECTOR);
+
+        int sector;
+        for(sector = 0; sector < num_sectors; sector++)
+        {
+            // 512 bytes per sector
+            if(!do_pio_write(data + sector * 256, 256))
+                break;
+        }
+
+        return sector;
+    }
+
     bool identify_device(int device, uint16_t data[256], ATACommand command)
     {
         // does not wait for ready as ATAPI devices aren't ready at this point
