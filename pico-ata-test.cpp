@@ -558,22 +558,15 @@ static void test_ata(int device)
 {
     using namespace ata;
 
-    // make sure we're ready
-    auto timeout = make_timeout_time_ms(10000);
-    while(!check_ready())
-    {
-        if(time_reached(timeout))
-        {
-            printf("timeout waiting for ready on device %i\n", device);
-            return;
-        }
-    }
-        
-    printf("ready\n");
 
     // identify
     uint16_t data[256];
-    ata::identify_device(device, data);
+    if(!ata::identify_device(device, data))
+    {
+        printf("IDENTIFY DEVICE failed on device %i\n", device);
+        return;
+    }
+
     print_identify_result(data);
 
     IdentityParser parser(data);

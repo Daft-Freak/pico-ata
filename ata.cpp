@@ -342,9 +342,12 @@ namespace ata
 
     bool identify_device(int device, uint16_t data[256], ATACommand command)
     {
-        // does not wait for ready as ATAPI devices aren't ready at this point
-
         write_register(ATAReg::Device, device << 4);
+
+        // wait for ready for non-PACKET command
+        if(command != ATACommand::IDENTIFY_PACKET_DEVICE && !wait_ready())
+            return false;
+
         write_command(command);
 
         return do_pio_read(data, 256);
