@@ -288,6 +288,8 @@ namespace ata
         assert(num_sectors <= 256);
         assert(lba < 0x10000000); // TODO: LBA48
 
+        write_register(ATAReg::Device, device << 4);
+
         if(!wait_ready())
             return 0;
 
@@ -314,6 +316,8 @@ namespace ata
         assert(device < 2);
         assert(num_sectors <= 256);
         assert(lba < 0x10000000); // TODO: LBA48
+
+        write_register(ATAReg::Device, device << 4);
 
         if(!wait_ready())
             return 0;
@@ -349,12 +353,14 @@ namespace ata
     // sector count meaning depends on the feature
     bool set_features(int device, ATAFeature feature, uint8_t sectorCount)
     {
+        write_register(ATAReg::Device, device << 4);
+
         if(!wait_ready())
             return false;
 
         write_register(ATAReg::Features, static_cast<uint16_t>(feature));
         write_register(ATAReg::SectorCount, sectorCount);
-        write_register(ATAReg::Device, device << 4);
+
         write_command(ATACommand::SET_FEATURES);
 
         return wait_not_busy_check_error();
