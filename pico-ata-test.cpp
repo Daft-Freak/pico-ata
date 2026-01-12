@@ -697,13 +697,19 @@ static void test_atapi(int device)
 
     // test ready
     bool ready = false;
-    for(int i = 0; i < 20; i++)
+    for(int i = 0; i < 80; i++)
     {
         if(!atapi::test_unit_ready(device))
         {
             auto sense_key = atapi::get_sense_key();
 
             printf("test unit ready sense key %X\n", int(sense_key));
+
+            if(sense_key == SCSISenseKey::HARDWARE_ERROR)
+            {
+                printf("\thardware error, giving up...");
+                break;
+            }
         }
         else
         {
