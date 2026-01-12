@@ -747,6 +747,9 @@ int main()
 
     for(int i = 0; i < 2; i++)
     {
+        // reset timings for init
+        ata::adjust_for_min_cycle_time(600);
+
         bool is_atapi = false;
         
         // attempt a DEVICE RESET to set the signature
